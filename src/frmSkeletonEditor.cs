@@ -681,6 +681,7 @@ namespace KimeraCS
 
             saveSkeletonToolStripMenuItem.Enabled = false;
             saveSkeletonAsToolStripMenuItem.Enabled = false;
+            exportGltfFFNxToolStripMenuItem.Enabled = false;
 
             undoToolStripMenuItem.Enabled = false;
             redoToolStripMenuItem.Enabled = false;
@@ -715,6 +716,7 @@ namespace KimeraCS
 
                     // Menu Strip
                     saveSkeletonAsToolStripMenuItem.Enabled = true;
+                    exportGltfFFNxToolStripMenuItem.Enabled = true;
 
                     // Show Normals vars
                     oneftoolStripMenuItem.PerformClick();
@@ -772,6 +774,7 @@ namespace KimeraCS
 
                     saveSkeletonToolStripMenuItem.Enabled = true;
                     saveSkeletonAsToolStripMenuItem.Enabled = true;
+                    exportGltfFFNxToolStripMenuItem.Enabled = true;
 
                     // Show Normals vars
                     oneftoolStripMenuItem.PerformClick();
@@ -875,6 +878,7 @@ namespace KimeraCS
                     saveSkeletonToolStripMenuItem.Enabled = true;
                     saveSkeletonAsToolStripMenuItem.Enabled = true;
                     statisticsToolStripMenuItem.Enabled = true;
+                    exportGltfFFNxToolStripMenuItem.Enabled = true;
                     break;
 
                 case K_MAGIC_SKELETON:
@@ -939,6 +943,7 @@ namespace KimeraCS
 
                     saveSkeletonToolStripMenuItem.Enabled = true;
                     saveSkeletonAsToolStripMenuItem.Enabled = true;
+                    exportGltfFFNxToolStripMenuItem.Enabled = true;
 
                     // Show Normals vars
                     thirtyftoolStripMenuItem.PerformClick();
@@ -6886,6 +6891,87 @@ namespace KimeraCS
             thousandftoolStripMenuItem.Checked = true;
 
             PanelModel_Paint(null, null);
+        }
+
+        private void ExportGltfFFNxToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // Stop playback so the current frame (default rest pose) is the one on screen.
+            if (btnPlayStopAnim.Checked) btnPlayStopAnim.Checked = false;
+
+            switch (modelType)
+            {
+                case K_HRC_SKELETON:
+                    if (fSkeleton.bones == null) return;
+                    if (IsRSDResource)
+                    {
+                        FieldSkeleton rsdSkeleton = fSkeleton;
+                        ShowStaticExport(fSkeleton.fileName + " (RSD resource)", fSkeleton.fileName,
+                                         opt => FF7StaticGltfExporter.ExportRSD(rsdSkeleton, opt));
+                        return;
+                    }
+                    using (FrmExportGltf frmExport = new FrmExportGltf(fSkeleton, fAnimation, iCurrentFrameScroll,
+                                                                        strSkeletonFullPath, iFPS))
+                    {
+                        frmExport.ShowDialog(this);
+                    }
+                    break;
+
+                case K_AA_SKELETON:
+                case K_MAGIC_SKELETON:
+                    if (bSkeleton.bones == null) return;
+                    if (bSkeleton.IsBattleLocation)
+                    {
+                        BattleSkeleton location = bSkeleton;
+                        ShowStaticExport(bSkeleton.fileName + " (battle scene, " + bSkeleton.bones.Count + " pieces)", bSkeleton.fileName,
+                                         opt => FF7StaticGltfExporter.ExportBattleLocation(location, opt));
+                        return;
+                    }
+                    using (FrmExportGltfBattle frmExport = new FrmExportGltfBattle(bSkeleton, modelType == K_MAGIC_SKELETON,
+                                                                                    bAnimationsPack, ianimIndex, iCurrentFrameScroll,
+                                                                                    ianimWeaponIndex, strSkeletonFullPath, iFPS))
+                    {
+                        frmExport.ShowDialog(this);
+                    }
+                    break;
+
+                case K_P_FIELD_MODEL:
+                case K_P_BATTLE_MODEL:
+                case K_P_MAGIC_MODEL:
+                case K_3DS_MODEL:
+                    if (IsTMDModel)
+                    {
+                        TMDModel tmd = mTMDModel;
+                        string tmdName = strGlobalTMDModelName;
+                        ShowStaticExport(tmdName + " (TMD, " + (tmd.TMDObjectList?.Length ?? 0) + " objects)",
+                                         Path.GetFileNameWithoutExtension(tmdName), opt => FF7StaticGltfExporter.ExportTMD(tmd, tmdName, opt));
+                    }
+                    else
+                    {
+                        PModel model = fPModel;
+                        ShowStaticExport((fPModel.fileName ?? "") + " (single model)", Path.GetFileNameWithoutExtension(fPModel.fileName ?? "model"),
+                                         opt => FF7StaticGltfExporter.ExportPModel(model, opt));
+                    }
+                    break;
+            }
+        }
+
+        // Tools > Batch glTF Export: exports a list of models, each in its own background KimeraCS process.
+        private void BatchGltfExportToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            string folder = string.IsNullOrEmpty(strSkeletonFullPath) ? "" : Path.GetDirectoryName(strSkeletonFullPath);
+            using (FrmBatchExportGltf frmBatch = new FrmBatchExportGltf(folder))
+            {
+                frmBatch.ShowDialog(this);
+            }
+        }
+
+        private void ShowStaticExport(string description, string defaultFileName,
+                                      Func<FF7StaticGltfExporter.Options, GltfRigExporter.Result> export)
+        {
+            using (FrmExportGltfStatic frmExport = new FrmExportGltfStatic(description, defaultFileName, export))
+            {
+                frmExport.ShowDialog(this);
+            }
         }
 
         private void Import3DSFixingPositionToolStripMenuItem_Click(object sender, EventArgs e)

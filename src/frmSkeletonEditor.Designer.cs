@@ -150,6 +150,9 @@ namespace KimeraCS
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.saveSkeletonToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.saveSkeletonAsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.exportGltfFFNxToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.batchGltfExportToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator9 = new System.Windows.Forms.ToolStripSeparator();
             this.Import3DSFixingPositionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.DontCheckDuplicatedPolysVertsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -1600,7 +1603,8 @@ namespace KimeraCS
             this.skeletonToolStripMenuItem,
             this.textureToolStripMenuItem,
             this.animationToolStripMenuItem,
-            this.databaseToolStripMenuItem});
+            this.databaseToolStripMenuItem,
+            this.toolsToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
             this.menuStrip1.Padding = new System.Windows.Forms.Padding(4, 2, 0, 2);
@@ -1620,6 +1624,7 @@ namespace KimeraCS
             this.toolStripSeparator1,
             this.saveSkeletonToolStripMenuItem,
             this.saveSkeletonAsToolStripMenuItem,
+            this.exportGltfFFNxToolStripMenuItem,
             this.toolStripSeparator9,
             this.Import3DSFixingPositionToolStripMenuItem,
             this.DontCheckDuplicatedPolysVertsToolStripMenuItem,
@@ -1692,6 +1697,29 @@ namespace KimeraCS
             this.saveSkeletonAsToolStripMenuItem.Size = new System.Drawing.Size(260, 22);
             this.saveSkeletonAsToolStripMenuItem.Text = "Save Skeleton/RSD/Model As...";
             this.saveSkeletonAsToolStripMenuItem.Click += new System.EventHandler(this.SaveSkeletonAsToolStripMenuItem_Click);
+            //
+            // exportGltfFFNxToolStripMenuItem
+            //
+            this.exportGltfFFNxToolStripMenuItem.Enabled = false;
+            this.exportGltfFFNxToolStripMenuItem.Name = "exportGltfFFNxToolStripMenuItem";
+            this.exportGltfFFNxToolStripMenuItem.Size = new System.Drawing.Size(260, 22);
+            this.exportGltfFFNxToolStripMenuItem.Text = "Export glTF for FFNx...";
+            this.exportGltfFFNxToolStripMenuItem.Click += new System.EventHandler(this.ExportGltfFFNxToolStripMenuItem_Click);
+            // 
+            // toolsToolStripMenuItem
+            // 
+            this.toolsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.batchGltfExportToolStripMenuItem});
+            this.toolsToolStripMenuItem.Name = "toolsToolStripMenuItem";
+            this.toolsToolStripMenuItem.Size = new System.Drawing.Size(46, 20);
+            this.toolsToolStripMenuItem.Text = "&Tools";
+            //
+            // batchGltfExportToolStripMenuItem
+            //
+            this.batchGltfExportToolStripMenuItem.Name = "batchGltfExportToolStripMenuItem";
+            this.batchGltfExportToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.batchGltfExportToolStripMenuItem.Text = "Batch glTF Export...";
+            this.batchGltfExportToolStripMenuItem.Click += new System.EventHandler(this.BatchGltfExportToolStripMenuItem_Click);
             // 
             // toolStripSeparator9
             // 
@@ -2288,6 +2316,9 @@ namespace KimeraCS
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
         private System.Windows.Forms.ToolStripMenuItem saveSkeletonToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem saveSkeletonAsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem exportGltfFFNxToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem toolsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem batchGltfExportToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator2;
         private System.Windows.Forms.ToolStripMenuItem extiToolStripMenuItem;
         private System.Windows.Forms.GroupBox gbSelectedPieceFrame;

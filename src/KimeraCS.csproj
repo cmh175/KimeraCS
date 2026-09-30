@@ -38,5 +38,10 @@
     <Copy SourceFiles="../misc/ifalnal.fil" DestinationFolder="$(OutputPath)" ContinueOnError="false" />
     <Copy SourceFiles="../misc/ifalnam.fil" DestinationFolder="$(OutputPath)" ContinueOnError="false" />
     <Copy SourceFiles="../misc/ifalnap.fil" DestinationFolder="$(OutputPath)" ContinueOnError="false" />
+    <!-- glTF Viewer (opened by Tools > glTF Viewer) -->
+    <ItemGroup>
+      <GltfViewerFiles Include="../misc/glTF Viewer/*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(GltfViewerFiles)" DestinationFolder="$(OutputPath)glTF Viewer" ContinueOnError="false" />
   </Target>
 </Project>

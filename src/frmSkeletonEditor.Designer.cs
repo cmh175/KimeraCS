@@ -152,6 +152,7 @@ namespace KimeraCS
             this.saveSkeletonAsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportGltfFFNxToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.gltfViewerToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.batchGltfExportToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator9 = new System.Windows.Forms.ToolStripSeparator();
             this.Import3DSFixingPositionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -1709,10 +1710,18 @@ namespace KimeraCS
             // toolsToolStripMenuItem
             // 
             this.toolsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.gltfViewerToolStripMenuItem,
             this.batchGltfExportToolStripMenuItem});
             this.toolsToolStripMenuItem.Name = "toolsToolStripMenuItem";
             this.toolsToolStripMenuItem.Size = new System.Drawing.Size(46, 20);
             this.toolsToolStripMenuItem.Text = "&Tools";
+            // 
+            // gltfViewerToolStripMenuItem
+            // 
+            this.gltfViewerToolStripMenuItem.Name = "gltfViewerToolStripMenuItem";
+            this.gltfViewerToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.gltfViewerToolStripMenuItem.Text = "glTF Viewer";
+            this.gltfViewerToolStripMenuItem.Click += new System.EventHandler(this.GltfViewerToolStripMenuItem_Click);
             //
             // batchGltfExportToolStripMenuItem
             //
@@ -2318,6 +2327,7 @@ namespace KimeraCS
         private System.Windows.Forms.ToolStripMenuItem saveSkeletonAsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem exportGltfFFNxToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem toolsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem gltfViewerToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem batchGltfExportToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator2;
         private System.Windows.Forms.ToolStripMenuItem extiToolStripMenuItem;

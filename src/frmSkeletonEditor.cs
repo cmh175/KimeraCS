@@ -6955,6 +6955,27 @@ namespace KimeraCS
             }
         }
 
+        // Tools > glTF Viewer: opens "glTF Viewer\viewer.html" (next to KimeraCS.exe) in the default web browser.
+        private void GltfViewerToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            string viewer = Path.Combine(Application.StartupPath, "glTF Viewer", "viewer.html");
+
+            if (!File.Exists(viewer))
+            {
+                MessageBox.Show("The glTF Viewer wasn't found:\n" + viewer, "glTF Viewer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(viewer) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not open the glTF Viewer: " + ex.Message, "glTF Viewer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
         // Tools > Batch glTF Export: exports a list of models, each in its own background KimeraCS process.
         private void BatchGltfExportToolStripMenuItem_Click(object sender, EventArgs e)
         {

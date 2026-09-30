@@ -55,6 +55,7 @@ namespace KimeraCS
         public const int K_3DS_MODEL = 6;
 
         public static int modelType = -1;
+        public static string strSkeletonFullPath = "";   // full path of the loaded field/battle/magic skeleton (glTF export)
 
         // Animation constants for skeleton
         public const int K_FRAME_BONE_ROTATION = 0;
@@ -104,6 +105,7 @@ namespace KimeraCS
 
                             // Field Skeleton (.hrc)
                             fSkeleton = new FieldSkeleton(strFileName, loadGeometryQ);
+                            strSkeletonFullPath = strFileName;
 
                             // We try to find some compatible Field Animation for the Field Skeleton.
                             // If there is no compatible field animation we have this var:   strGlobalFieldAnimationName = ""
@@ -121,6 +123,7 @@ namespace KimeraCS
                         case K_AA_SKELETON:
                             // Battle Skeleton (aa)
                             bSkeleton = new BattleSkeleton(strFileName, CanHaveLimitBreak(Path.GetFileNameWithoutExtension(strFileName).ToUpper()), true);
+                            strSkeletonFullPath = strFileName;
 
                             // Normally we will have the ??DA file with the Animation Pack.
                             // Location Battle Models has NOT ??DA file.
@@ -133,6 +136,7 @@ namespace KimeraCS
                         case K_MAGIC_SKELETON:
                             // Magic Skeleton (.d)
                             bSkeleton = new BattleSkeleton(strFileName, true);
+                            strSkeletonFullPath = strFileName;
 
                             // Normally we will have the *.A00 file with the Animation Pack.
                             // But editing models, it is possible we work without it. So, we will make something
@@ -183,6 +187,7 @@ namespace KimeraCS
 
                             // Field Skeleton (.hrc)
                             fSkeleton = new FieldSkeleton(strFileName, loadGeometryQ);
+                            strSkeletonFullPath = strFileName;
 
                             iloadSkeletonResult = LoadAnimationFromDB(strAnimFileName);
                             break;
@@ -190,6 +195,7 @@ namespace KimeraCS
                         case K_AA_SKELETON:
                             // Battle Skeleton (aa)
                             bSkeleton = new BattleSkeleton(strFileName, CanHaveLimitBreak(Path.GetFileNameWithoutExtension(strFileName).ToUpper()), true);
+                            strSkeletonFullPath = strFileName;
 
                             // Normally we will have the ??DA file with the Animation Pack.
                             // Location Battle Models has NOT ??DA file.
@@ -201,6 +207,7 @@ namespace KimeraCS
                         case K_MAGIC_SKELETON:
                             // Magic Skeleton (.d)
                             bSkeleton = new BattleSkeleton(strFileName, true);
+                            strSkeletonFullPath = strFileName;
 
                             // Normally we will have the ??DA file with the Animation Pack.
                             // Location Battle Models has NOT ??DA file.

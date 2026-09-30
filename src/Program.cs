@@ -12,12 +12,16 @@ namespace KimeraCS
         /// Punto de entrada principal para la aplicación.
         /// </summary>
         [STAThread]
-        static void Main()
+        static int Main(string[] args)
         {
+            // Command-line glTF export (no window), see Core\GltfCommandLine.cs
+            if (args.Length > 0 && GltfCommandLine.Handles(args[0])) return GltfCommandLine.Run(args);
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             //Application.AddMessageFilter(new MenuFilter()); // Add a message filter for avoid Menu key.
             Application.Run(new FrmSkeletonEditor());
+            return 0;
         }
     }
 

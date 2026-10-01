@@ -139,10 +139,13 @@ namespace KimeraCS
             public GltfBuilder Gltf = new GltfBuilder();
             public string TexFolder;
             public int Sampler = -1;
-            public Dictionary<string, int> MaterialByTex = new Dictionary<string, int>();
+            public Dictionary<string, int> MaterialByTex = new Dictionary<string, int>();          // "TEX|alpha mode" -> material
+            public Dictionary<string, (int Texture, string Name)> TextureByTex = new Dictionary<string, (int, string)>();
             public int PlainColorMaterial = -1;
             public int BakeMaterial = -1;
             public int ImageCounter = 0;
+            public int DoubleSidedGroups = 0;
+            public Dictionary<int, int> DoubleSidedMaterial = new Dictionary<int, int>();   // material -> its two-sided copy
 
             // baked vertex colour atlas
             public int BakeCols, BakeSize;
@@ -157,7 +160,10 @@ namespace KimeraCS
             return ctx.Sampler;
         }
 
-        private static JsonObject NewMaterial(string name, int textureIndex, bool blend, bool unlit)
+        // alphaMode: null = opaque, "MASK" = see-through pixels fully on or off (FF7 colour-keyed textures),
+        // "BLEND" = semi-transparent (groups with V_ALPHABLEND). FFNx ignores it; viewers draw BLEND parts
+        // without writing depth, so a model made only of BLEND parts shows its parts in the wrong order.
+        private static JsonObject NewMaterial(string name, int textureIndex, string alphaMode, bool unlit)
         {
             JsonObject pbr = new JsonObject();
             if (textureIndex >= 0) pbr["baseColorTexture"] = new JsonObject { ["index"] = textureIndex };
@@ -165,15 +171,15 @@ namespace KimeraCS
             pbr["roughnessFactor"] = 0.9;
 
             JsonObject mat = new JsonObject { ["name"] = name };
-            if (blend) mat["alphaMode"] = "BLEND";
+            if (alphaMode != null) mat["alphaMode"] = alphaMode;
+            if (alphaMode == "MASK") mat["alphaCutoff"] = 0.5;
             if (unlit) mat["extensions"] = new JsonObject { ["KHR_materials_unlit"] = new JsonObject() };
             mat["pbrMetallicRoughness"] = pbr;
             return mat;
         }
 
-        // Writes the image (PNG + optional DDS) and returns a material that uses it.
-        private static int AddImageMaterial(ExportContext ctx, string imageName, byte[] bgra, int width, int height,
-                                            bool blend, int ddsMipLevels)
+        // Writes the image (PNG + optional DDS) and returns its glTF texture.
+        private static int AddImage(ExportContext ctx, string imageName, byte[] bgra, int width, int height, int ddsMipLevels)
         {
             string pngPath = Path.Combine(ctx.TexFolder, imageName + ".png");
             using (Bitmap bmp = BGRAToBitmap(bgra, width, height)) bmp.Save(pngPath, ImageFormat.Png);
@@ -194,27 +200,40 @@ namespace KimeraCS
                 ["name"] = imageName,
                 ["uri"] = "textures/" + imageName + ".png",
             });
-            int tex = ctx.Gltf.AddTexture(new JsonObject { ["sampler"] = GetSampler(ctx), ["source"] = img });
-
-            return ctx.Gltf.AddMaterial(NewMaterial(imageName, tex, blend, ctx.Opt.Unlit));
+            return ctx.Gltf.AddTexture(new JsonObject { ["sampler"] = GetSampler(ctx), ["source"] = img });
         }
 
-        private static int GetTextureMaterial(ExportContext ctx, TEX tex)
+        private static int AddImageMaterial(ExportContext ctx, string imageName, byte[] bgra, int width, int height,
+                                            string alphaMode, int ddsMipLevels)
+        {
+            int tex = AddImage(ctx, imageName, bgra, width, height, ddsMipLevels);
+            return ctx.Gltf.AddMaterial(NewMaterial(imageName, tex, alphaMode, ctx.Opt.Unlit));
+        }
+
+        // One image per TEX file; one material per TEX file and alpha mode.
+        private static int GetTextureMaterial(ExportContext ctx, TEX tex, bool alphaBlend)
         {
             string key = (tex.TEXfileName ?? "").ToUpperInvariant();
-            if (ctx.MaterialByTex.TryGetValue(key, out int mat)) return mat;
+            string alphaMode = alphaBlend ? "BLEND" : "MASK";
+            if (ctx.MaterialByTex.TryGetValue(key + "|" + alphaMode, out int mat)) return mat;
 
-            string imageName = ctx.Opt.TexturePrefix + "_" + ctx.ImageCounter.ToString(CultureInfo.InvariantCulture);
-            ctx.ImageCounter++;
+            if (!ctx.TextureByTex.TryGetValue(key, out (int Texture, string Name) t))
+            {
+                t.Name = ctx.Opt.TexturePrefix + "_" + ctx.ImageCounter.ToString(CultureInfo.InvariantCulture);
+                ctx.ImageCounter++;
 
-            byte[] bgra;
-            using (Bitmap bmp = FrmTEXToPNGBatchConversion.PutPixelDataIntoBitmap32ARGB(tex, false))
-                bgra = BitmapToBGRA(bmp);
+                byte[] bgra;
+                using (Bitmap bmp = FrmTEXToPNGBatchConversion.PutPixelDataIntoBitmap32ARGB(tex, false))
+                    bgra = BitmapToBGRA(bmp);
 
-            mat = AddImageMaterial(ctx, imageName, bgra, tex.width, tex.height, true, 0);
-            ctx.MaterialByTex[key] = mat;
-            ctx.Res.Report.Add("  texture " + key + " -> textures\\" + imageName + ".png" +
-                               (ctx.Opt.WriteDDS ? " + .dds" : "") + " (" + tex.width + "x" + tex.height + ")");
+                t.Texture = AddImage(ctx, t.Name, bgra, tex.width, tex.height, 0);
+                ctx.TextureByTex[key] = t;
+                ctx.Res.Report.Add("  texture " + key + " -> textures\\" + t.Name + ".png" +
+                                   (ctx.Opt.WriteDDS ? " + .dds" : "") + " (" + tex.width + "x" + tex.height + ")");
+            }
+
+            mat = ctx.Gltf.AddMaterial(NewMaterial(t.Name, t.Texture, alphaMode, ctx.Opt.Unlit));
+            ctx.MaterialByTex[key + "|" + alphaMode] = mat;
             return mat;
         }
 
@@ -235,6 +254,26 @@ namespace KimeraCS
             if ((h.field_C & 0x20000) == 0) return false;
             if ((h.field_8 & 0x20000) == 0) return true;
             return h.shademode != 2;
+        }
+
+        // Same decision as ModelDrawing.DrawPModel (V_NOCULL): the group is drawn with both sides of every
+        // polygon. Vanilla models never set it; some mods (e.g. Ninostyle) rely on it for open meshes.
+        // Same decision as ModelDrawing.DrawPModel (V_ALPHABLEND): the group is drawn semi-transparent.
+        private static bool IsAlphaBlend(PHundret h) => (h.field_C & 0x400) != 0 && (h.field_8 & 0x400) != 0;
+
+        private static bool IsNoCull(PHundret h) => (h.field_C & 0x4000) != 0 && (h.field_8 & 0x4000) != 0;
+
+        // A copy of a material with "doubleSided": true (viewers and FFNx then draw both sides). The baked
+        // colour material doesn't exist yet while meshes are built: it is -2, and its two-sided copy -3.
+        private static int DoubleSided(ExportContext ctx, int material)
+        {
+            if (material == -2) return -3;
+            if (ctx.DoubleSidedMaterial.TryGetValue(material, out int twin)) return twin;
+            JsonObject copy = (JsonObject)ctx.Gltf.Materials[material].DeepClone();
+            copy["doubleSided"] = true;
+            twin = ctx.Gltf.AddMaterial(copy);
+            ctx.DoubleSidedMaterial[material] = twin;
+            return twin;
         }
 
         // Fills one BAKE_CELL x BAKE_CELL cell with a triangle's vertex colours and returns the UVs
@@ -430,11 +469,12 @@ namespace KimeraCS
                         p.Idx.Add(flipWinding ? vi[1] : vi[2]);
                     }
 
-                    if (textured) p.Material = GetTextureMaterial(ctx, tex.Value);
+                    if (textured) p.Material = GetTextureMaterial(ctx, tex.Value,
+                                                                  m.Hundrets != null && gi < m.Hundrets.Length && IsAlphaBlend(m.Hundrets[gi]));
                     else
                     {
                         if (ctx.PlainColorMaterial < 0)
-                            ctx.PlainColorMaterial = ctx.Gltf.AddMaterial(NewMaterial(ctx.Opt.TexturePrefix + "_vertexcolor", -1, false, ctx.Opt.Unlit));
+                            ctx.PlainColorMaterial = ctx.Gltf.AddMaterial(NewMaterial(ctx.Opt.TexturePrefix + "_vertexcolor", -1, null, ctx.Opt.Unlit));
                         p.Material = ctx.PlainColorMaterial;
                     }
 
@@ -446,6 +486,12 @@ namespace KimeraCS
                 if (badPolys > 0)
                     ctx.Res.Warnings.Add(meshName + " group " + gi + ": skipped " + badPolys + " polygon(s) with invalid vertex indices.");
                 if (p.Idx.Count == 0) continue;
+
+                if (m.Hundrets != null && gi < m.Hundrets.Length && IsNoCull(m.Hundrets[gi]))
+                {
+                    p.Material = DoubleSided(ctx, p.Material);
+                    ctx.DoubleSidedGroups++;
+                }
 
                 int n = p.VertexCount;
                 byte[] joints = new byte[n * 4];
@@ -624,11 +670,19 @@ namespace KimeraCS
             if (ctx.BakeNext > 0)
             {
                 string bakeName = opt.TexturePrefix + "_vc";
-                int bakeMat = AddImageMaterial(ctx, bakeName, ctx.BakePixels, ctx.BakeSize, ctx.BakeSize, false, BAKE_MIP_LEVELS);
-                // replace the placeholder material index
+                int bakeMat = AddImageMaterial(ctx, bakeName, ctx.BakePixels, ctx.BakeSize, ctx.BakeSize, null, BAKE_MIP_LEVELS);
+                int bakeMat2 = -1;
+                // replace the placeholder material indexes
                 foreach (JsonNode mesh in gb.Meshes)
                     foreach (JsonNode prim in (JsonArray)mesh["primitives"])
+                    {
                         if ((int)prim["material"] == -2) prim["material"] = bakeMat;
+                        else if ((int)prim["material"] == -3)
+                        {
+                            if (bakeMat2 < 0) bakeMat2 = DoubleSided(ctx, bakeMat);
+                            prim["material"] = bakeMat2;
+                        }
+                    }
                 res.Report.Add("  baked vertex colours of " + ctx.BakeNext + " untextured triangles -> textures\\" +
                                bakeName + ".png (" + ctx.BakeSize + "x" + ctx.BakeSize + ")");
             }
@@ -638,6 +692,8 @@ namespace KimeraCS
             }
 
             if (meshNodes.Count == 0) res.Warnings.Add("The model has no geometry.");
+            if (ctx.DoubleSidedGroups > 0)
+                res.Report.Add("  " + ctx.DoubleSidedGroups + " group(s) drawn two-sided (V_NOCULL in the model) -> doubleSided materials");
 
             // ---------------------------------------------------------------- root + skin
             JsonArray rootChildren = new JsonArray();

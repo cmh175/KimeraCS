@@ -100,7 +100,8 @@ namespace KimeraCS
         }
 
         private const string GENERATOR = "KimeraCS glTF exporter for FFNx";
-        public const int FFNX_MAX_BONES = 128;
+        public const int FFNX_MAX_BONES = 128;              // FFNx 1.24.0
+        public const int FFNX_MAX_BONES_NEWER = 255;        // newer FFNx builds (bgfx stores uniform array sizes in 8 bits)
         private const int BAKE_CELL = 8;              // pixels per baked triangle cell
         private const int BAKE_MIP_LEVELS = 4;        // 8x8 cells stay >= 1 pixel at the last level
 
@@ -599,8 +600,11 @@ namespace KimeraCS
                 res.Errors.Add("The model has " + nj + " bones; glTF joint indices for FFNx are 8-bit (max 255).");
                 return;
             }
-            if (nj > FFNX_MAX_BONES)
-                res.Warnings.Add("The model has " + nj + " bones; FFNx 1.24.0 supports " + FFNX_MAX_BONES + ".");
+            if (nj > FFNX_MAX_BONES_NEWER)
+                res.Warnings.Add("The model has " + nj + " bones; no FFNx build supports more than " + FFNX_MAX_BONES_NEWER + ".");
+            else if (nj > FFNX_MAX_BONES)
+                res.Warnings.Add("The model has " + nj + " bones; FFNx 1.24.0 supports " + FFNX_MAX_BONES +
+                                 " (newer builds up to " + FFNX_MAX_BONES_NEWER + ").");
 
             // ---------------------------------------------------------------- rest pose
             double[] rootMatrix = GltfMath.TR(rig.RootRestT[0], rig.RootRestT[1], rig.RootRestT[2], rig.RootRestR);

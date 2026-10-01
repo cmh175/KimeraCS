@@ -20,18 +20,20 @@ namespace KimeraCS
     //   KimeraCS.exe --export-gltf-field <model.hrc> --out <folder> --anims ACFE,AAFF,...
     //                [--name AABA] [--fps 30] [--prefix cloud] [--no-dds] [--no-bake]
     //                [--anim-dir <folder>] [--rest zero|frame] [--rest-anim ACFE[:frame]]
-    //                [--60fps] [--loops auto|all|none] [--report <file>]
+    //                [--60fps] [--loops all|auto|none] [--report <file>]
     //   --anims all: every compatible animation (Ifalna database order, so the default idle is first).
     //   --name p: name the file after the model's first .p file (what FFNx looks for).
     //   --rest frame (default) takes the rest pose from --rest-anim (default: the first animation in
     //   --anims, frame 0). The root placement always comes from that frame.
+    //   --60fps: field 30 -> 60 fps (2 keys per frame), battle/magic 15 -> 60 fps (4 keys per frame).
+    //   --loops all (default): every animation also blends back into its first frame (safe with the 60FPS mod).
     //
     // Battle (??AA) and magic/summon (.D) models:
     //   KimeraCS.exe --export-gltf-battle <model> --out <folder>
     //                [--name RTAA] [--fps 30] [--prefix cloud_b] [--no-dds] [--no-bake]
     //                [--anims all|none|0,1,5] [--limits auto|none|LIMCL2,BLAVER] [--limits-dir <folder>]
     //                [--weapons all|current|none] [--weapon 0] [--rest zero|frame] [--rest-anim 0[:frame]]
-    //                [--60fps] [--loops auto|all|none]      (--60fps doubles the frame rate)
+    //                [--60fps] [--loops all|auto|none]
     //
     // Static models (RSD resource, single .P, .TMD, or a battle scene ??AA):
     //   KimeraCS.exe --export-gltf-static <file> --out <folder> [--name X] [--prefix x] [--no-dds] [--no-bake]
@@ -184,7 +186,7 @@ namespace KimeraCS
                                 : FF7FieldGltfExporter.RestPoseMode.CurrentFrame;
                             break;
                         case "--rest-anim": restAnim = Next(); break;
-                        case "--60fps": opt.DoubleFrameRate = true; break;
+                        case "--60fps": opt.To60Fps = true; break;
                         case "--loops": opt.Loops = ParseLoops(Next()); break;
                         case "--report": reportArg = Next(); break;
                         default: throw new ArgumentException("Unknown option " + args[i]);
@@ -288,7 +290,7 @@ namespace KimeraCS
                                 : FF7BattleGltfExporter.RestPoseMode.CurrentFrame;
                             break;
                         case "--rest-anim": restAnim = Next(); break;
-                        case "--60fps": opt.DoubleFrameRate = true; break;
+                        case "--60fps": opt.To60Fps = true; break;
                         case "--loops": opt.Loops = ParseLoops(Next()); break;
                         case "--report": reportPath = Next(); break;
                         default: throw new ArgumentException("Unknown option " + args[i]);

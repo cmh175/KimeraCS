@@ -321,7 +321,7 @@
             this.chk60fps.Name = "chk60fps";
             this.chk60fps.Size = new System.Drawing.Size(300, 19);
             this.chk60fps.TabIndex = 4;
-            this.chk60fps.Text = "Double the frame rate, e.g. 30 -> 60 fps (in-between keys)";
+            this.chk60fps.Text = "Convert to 60 fps (field 30 -> 60, battle 15 -> 60)";
             this.chk60fps.UseVisualStyleBackColor = true;
             this.chk60fps.CheckedChanged += new System.EventHandler(this.Chk60fps_CheckedChanged);
             //

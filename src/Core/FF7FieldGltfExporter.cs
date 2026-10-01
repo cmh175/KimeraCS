@@ -49,8 +49,8 @@ namespace KimeraCS
             public FieldFrame? RestFrame = null;      // pose for CurrentFrame; root placement for both
             public string AnimationFolder = "";
             public List<string> AnimationNames = new List<string>();
-            public bool DoubleFrameRate = false;      // 30 -> 60 fps conversion (see GltfRigExporter.DoubleFrameRate)
-            public GltfRigExporter.LoopMode Loops = GltfRigExporter.LoopMode.Auto;
+            public bool To60Fps = false;              // 30 -> 60 fps conversion (see GltfRigExporter.MultiplyFrameRate)
+            public GltfRigExporter.LoopMode Loops = GltfRigExporter.LoopMode.All;
         }
 
         public class Result : GltfRigExporter.Result { }
@@ -188,6 +188,7 @@ namespace KimeraCS
                 }
                 if (string.IsNullOrWhiteSpace(opt.FileName)) opt.FileName = skel.fileName.Split('.')[0];
                 if (opt.Fps <= 0) opt.Fps = 30;
+                if (opt.To60Fps) opt.Fps = 30;            // field animations are 30 fps: two keys per frame
 
                 res.Report.Add("Model: " + skel.fileName + " (" + skel.name + "), " + skel.bones.Count + " bones");
 
@@ -263,7 +264,7 @@ namespace KimeraCS
                 }
 
                 // ---------------------------------------------------------------- animations
-                res.Report.Add(opt.DoubleFrameRate
+                res.Report.Add(opt.To60Fps
                     ? "Animations (converted 30 -> 60 fps: every stored frame kept, an in-between key added after each):"
                     : "Animations (" + opt.Fps.ToString(CultureInfo.InvariantCulture) + " fps timestamps, one key per stored frame):");
                 HashSet<string> animKeys = new HashSet<string>();
@@ -396,7 +397,7 @@ namespace KimeraCS
                     TexturePrefix = opt.TexturePrefix,
                     WriteDDS = opt.WriteDDS,
                     BakeVertexColors = opt.BakeVertexColors,
-                    DoubleFrameRate = opt.DoubleFrameRate,
+                    FrameRateFactor = opt.To60Fps ? 2 : 1,
                     Loops = opt.Loops,
                 }, res);
 

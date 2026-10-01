@@ -53,8 +53,8 @@ namespace KimeraCS
             public string AnimationPackFile = "";          // ??DA or .A00; "" = none
             public List<int> AnimationIndexes = null;      // null = all animations with frames
             public List<string> LimitPackFiles = new List<string>();
-            public bool DoubleFrameRate = false;           // double the frame rate (e.g. for 60fps mods)
-            public GltfRigExporter.LoopMode Loops = GltfRigExporter.LoopMode.Auto;
+            public bool To60Fps = false;                   // 15 -> 60 fps conversion (battle animations are 15 fps)
+            public GltfRigExporter.LoopMode Loops = GltfRigExporter.LoopMode.All;
         }
 
         public class Result : GltfRigExporter.Result { }
@@ -163,6 +163,7 @@ namespace KimeraCS
                 if (string.IsNullOrWhiteSpace(opt.FileName))
                     opt.FileName = isMagic ? baseName : skel.fileName.ToUpperInvariant();
                 if (opt.Fps <= 0) opt.Fps = 30;
+                if (opt.To60Fps) opt.Fps = 15;            // battle animations are 15 fps: four keys per frame
 
                 int nb = skel.bones.Count;
                 int boneOffset = nb > 1 ? 1 : 0;           // frame.bones[0] is the root; bone i uses [i + 1]
@@ -281,8 +282,8 @@ namespace KimeraCS
                                    " (all on joint \"weapon\")");
 
                 // ---------------------------------------------------------------- animations
-                res.Report.Add(opt.DoubleFrameRate
-                    ? "Animations (frame rate doubled: every stored frame kept, an in-between key added after each):"
+                res.Report.Add(opt.To60Fps
+                    ? "Animations (converted 15 -> 60 fps: every stored frame kept, three in-between keys added after each):"
                     : "Animations (" + opt.Fps.ToString(CultureInfo.InvariantCulture) + " fps timestamps, one key per stored frame):");
 
                 void AddPack(BattleAnimationsPack pack, string prefix, List<int> indexes)
@@ -427,7 +428,7 @@ namespace KimeraCS
                     WriteDDS = opt.WriteDDS,
                     BakeVertexColors = opt.BakeVertexColors,
                     Unlit = false,                  // battle models are lit by the game
-                    DoubleFrameRate = opt.DoubleFrameRate,
+                    FrameRateFactor = opt.To60Fps ? 4 : 1,
                     Loops = opt.Loops,
                 }, res);
 

@@ -20,7 +20,7 @@ namespace KimeraCS
         private static string lastOutFolder = "";
         private static int lastFps = 0;
         private static bool lastDDS = true, lastBake = true, lastRestZero = false, last60fps = false;
-        private static int lastLoops = 0;
+        private static int lastLoops = 1;      // All loop: safe with the 60FPS mod's frame counts
 
         private readonly BattleSkeleton skeleton;
         private readonly bool isMagic;
@@ -222,9 +222,11 @@ namespace KimeraCS
             if (f != null) txtOutFolder.Text = f;
         }
 
+        // 15 -> 60 fps: timestamps are then always 1/60 s, so the frame rate choice doesn't apply.
         private void Chk60fps_CheckedChanged(object sender, EventArgs e)
         {
             cbLoops.Enabled = chk60fps.Checked;
+            cbFps.Enabled = !chk60fps.Checked;
         }
 
         private void CbFileName_TextChanged(object sender, EventArgs e)
@@ -291,7 +293,7 @@ namespace KimeraCS
                 AnimationPackFile = checkedIndexes.Count > 0 ? packFile : "",
                 AnimationIndexes = checkedIndexes.OrderBy(i => i).ToList(),
                 LimitPackFiles = limits,
-                DoubleFrameRate = chk60fps.Checked,
+                To60Fps = chk60fps.Checked,
                 Loops = cbLoops.SelectedIndex == 1 ? GltfRigExporter.LoopMode.All
                       : cbLoops.SelectedIndex == 2 ? GltfRigExporter.LoopMode.None
                       : GltfRigExporter.LoopMode.Auto,

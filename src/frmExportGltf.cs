@@ -23,7 +23,7 @@ namespace KimeraCS
         private static string lastExtra = "";
         private static int lastFps = 0;
         private static bool lastDDS = true, lastBake = true, lastRestZero = false, last60fps = false;
-        private static int lastLoops = 0;
+        private static int lastLoops = 1;      // All loop: safe with the 60FPS mod's frame counts
 
         private readonly FieldSkeleton skeleton;
         private readonly FieldFrame? currentFrame;
@@ -291,7 +291,7 @@ namespace KimeraCS
                 RestFrame = currentFrame,
                 AnimationFolder = txtAnimFolder.Text.Trim(),
                 AnimationNames = anims,
-                DoubleFrameRate = chk60fps.Checked,
+                To60Fps = chk60fps.Checked,
                 Loops = cbLoops.SelectedIndex == 1 ? GltfRigExporter.LoopMode.All
                       : cbLoops.SelectedIndex == 2 ? GltfRigExporter.LoopMode.None
                       : GltfRigExporter.LoopMode.Auto,

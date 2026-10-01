@@ -83,8 +83,9 @@ namespace KimeraCS
             public bool BakeVertexColors = true;      // untextured parts get a baked colour texture
             public bool Unlit = true;                 // KHR_materials_unlit: field colours have the lighting baked in;
                                                       // battle models are lit by the game (viewers only, FFNx ignores it)
-            public bool DoubleFrameRate = false;      // e.g. 30 -> 60 fps: an in-between key after every frame, timestamps at 2 x Fps
-            public LoopMode Loops = LoopMode.Auto;    // whether the last frame also blends back into the first
+            public int FrameRateFactor = 1;           // > 1: keys per stored frame (2 = 30 -> 60 fps, 4 = 15 -> 60 fps),
+                                                      // timestamps at FrameRateFactor x Fps (see MultiplyFrameRate)
+            public LoopMode Loops = LoopMode.All;     // whether the last frame also blends back into the first
         }
 
         public enum LoopMode { Auto, All, None }
@@ -672,13 +673,13 @@ namespace KimeraCS
             {
                 Animation anim = source;
                 float fps = opt.Fps;
-                if (opt.DoubleFrameRate)
+                if (opt.FrameRateFactor > 1)
                 {
-                    fps = opt.Fps * 2;
+                    fps = opt.Fps * opt.FrameRateFactor;
                     if (source.Frames > 1)
                     {
-                        anim = DoubleFrameRate(source, opt.Loops, out string how);
-                        res.Report.Add("  x2 fps " + source.Name + ": " + source.Frames + " -> " + anim.Frames + " keys (" + how + ")");
+                        anim = MultiplyFrameRate(source, rig.Joints, opt.FrameRateFactor, opt.Loops, out string how);
+                        res.Report.Add("  x" + opt.FrameRateFactor + " fps " + source.Name + ": " + source.Frames + " -> " + anim.Frames + " keys (" + how + ")");
                     }
                 }
 
@@ -726,7 +727,7 @@ namespace KimeraCS
         }
 
         // ------------------------------------------------------------------------------------------
-        // 30 -> 60 fps conversion
+        // Frame rate conversion (30 -> 60 fps for field models, 15 -> 60 fps for battle models)
         // ------------------------------------------------------------------------------------------
         private static double KeyAngle(float[] r, int f, int g)
         {
@@ -734,12 +735,32 @@ namespace KimeraCS
             return 2 * Math.Acos(Math.Min(1.0, d)) * 180 / Math.PI;
         }
 
-        private static void Slerp(float[] src, int a, int b, double t, float[] dst, int di)
+        // Quaternions as double[4] (x, y, z, w) for the in-between math.
+        private static double[] Q(float[] src, int f) =>
+            src == null ? new double[] { 0, 0, 0, 1 } : new double[] { src[f * 4], src[f * 4 + 1], src[f * 4 + 2], src[f * 4 + 3] };
+
+        private static double[] QMul(double[] a, double[] b) => new double[]
         {
-            double ax = src[a * 4], ay = src[a * 4 + 1], az = src[a * 4 + 2], aw = src[a * 4 + 3];
-            double bx = src[b * 4], by = src[b * 4 + 1], bz = src[b * 4 + 2], bw = src[b * 4 + 3];
-            double d = ax * bx + ay * by + az * bz + aw * bw;
-            if (d < 0) { bx = -bx; by = -by; bz = -bz; bw = -bw; d = -d; }
+            a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+            a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+            a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+            a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
+        };
+
+        private static double[] QConj(double[] q) => new double[] { -q[0], -q[1], -q[2], q[3] };
+
+        private static double[] QRotate(double[] q, double[] v)
+        {
+            double[] r = QMul(QMul(q, new double[] { v[0], v[1], v[2], 0 }), QConj(q));
+            return new double[] { r[0], r[1], r[2] };
+        }
+
+        // Shortest-path slerp (never the long way round).
+        private static double[] QSlerp(double[] a, double[] b, double t)
+        {
+            double d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+            double s = 1;
+            if (d < 0) { s = -1; d = -d; }
             double wa, wb;
             if (d > 0.9995) { wa = 1 - t; wb = t; }
             else
@@ -747,18 +768,26 @@ namespace KimeraCS
                 double th = Math.Acos(d), sn = Math.Sin(th);
                 wa = Math.Sin((1 - t) * th) / sn; wb = Math.Sin(t * th) / sn;
             }
-            double x = ax * wa + bx * wb, y = ay * wa + by * wb, z = az * wa + bz * wb, w = aw * wa + bw * wb;
-            double l = Math.Sqrt(x * x + y * y + z * z + w * w);
+            double[] r = new double[4];
+            for (int c = 0; c < 4; c++) r[c] = a[c] * wa + s * b[c] * wb;
+            double l = Math.Sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2] + r[3] * r[3]);
             if (l < 1e-12) l = 1;
-            // stay in the hemisphere of the previous key so viewers interpolate the short way
-            if (di > 0 && x * dst[di * 4 - 4] + y * dst[di * 4 - 3] + z * dst[di * 4 - 2] + w * dst[di * 4 - 1] < 0) l = -l;
-            dst[di * 4] = (float)(x / l); dst[di * 4 + 1] = (float)(y / l); dst[di * 4 + 2] = (float)(z / l); dst[di * 4 + 3] = (float)(w / l);
+            for (int c = 0; c < 4; c++) r[c] /= l;
+            return r;
         }
 
-        private static void Lerp(float[] src, int a, int b, double t, float[] dst, int di)
+        // Writes key k, kept in the hemisphere of key k - 1 so viewers interpolate the short way.
+        private static void PutKey(float[] dst, int k, double[] q)
         {
-            for (int c = 0; c < 3; c++) dst[di * 3 + c] = (float)(src[a * 3 + c] * (1 - t) + src[b * 3 + c] * t);
+            double l = 1;
+            if (k > 0 && q[0] * dst[k * 4 - 4] + q[1] * dst[k * 4 - 3] + q[2] * dst[k * 4 - 2] + q[3] * dst[k * 4 - 1] < 0) l = -1;
+            for (int c = 0; c < 4; c++) dst[k * 4 + c] = (float)(q[c] * l);
         }
+
+        private static double[] V3(float[] src, int f) => new double[] { src[f * 3], src[f * 3 + 1], src[f * 3 + 2] };
+
+        private static double[] V3Lerp(double[] a, double[] b, double t) =>
+            new double[] { a[0] * (1 - t) + b[0] * t, a[1] * (1 - t) + b[1] * t, a[2] * (1 - t) + b[2] * t };
 
         // A looping animation ends one step before its first frame: the jump from the last frame back to
         // the first is about as big as a normal step. One-shot animations jump much further (or repeat
@@ -776,10 +805,19 @@ namespace KimeraCS
             return seam > 0.01 && seam <= Math.Max(1.5 * maxStep, 0.5);
         }
 
-        // Every original frame is kept; an in-between key (rotations slerped, translations blended) is
-        // added after each frame, and for loops also between the last frame and the first.
-        // n frames -> 2n keys (loop) or 2n - 1 keys (one-shot).
-        public static Animation DoubleFrameRate(Animation a, LoopMode mode, out string how)
+        // Multiplies the frame rate: every original frame is kept and factor - 1 in-between keys are added
+        // after each, and for loops also between the last frame and the first.
+        // n frames -> factor * n keys (loop) or factor * (n - 1) + 1 keys (one-shot). The 60FPS mod uses the
+        // same counts (2n - 1 for field, 4n or 4n - 3 for battle). Loops = All is the safe default: FFNx takes
+        // the frame number from the game's .a file and never reaches keys past its frame count, while
+        // missing keys would freeze the last pose.
+        //
+        // In-betweens blend the whole body like Kimera's own interpolation (the 60FPS mod was made with it):
+        // each joint's rotation is accumulated down the hierarchy from the root, those whole-body rotations
+        // are slerped, and the local rotation is taken back out relative to the blended parent. Joints that
+        // hang from the root node (body roots, the battle weapon) blend their placement in the scene the
+        // same way. Translations of other joints (bone lengths) are blended linearly.
+        public static Animation MultiplyFrameRate(Animation a, List<Joint> joints, int factor, LoopMode mode, out string how)
         {
             int nf = a.Frames;
             bool loop;
@@ -792,37 +830,92 @@ namespace KimeraCS
                       ", last->first {0:0.#} deg, largest step {1:0.#} deg", seam, maxStep);
             }
 
-            int n2 = loop ? nf * 2 : nf * 2 - 1;
+            int nj = a.R.Length;
+            int n2 = loop ? nf * factor : (nf - 1) * factor + 1;
             Animation o = new Animation
             {
                 Name = a.Name,
                 Frames = n2,
                 T = new float[a.T.Length][],
-                R = new float[a.R.Length][],
+                R = new float[nj][],
                 RootT = new float[n2 * 3],
                 RootR = new float[n2 * 4],
             };
-
-            void Fill(float[] srcT, float[] srcR, float[] dstT, float[] dstR)
-            {
-                for (int k = 0; k < n2; k++)
-                {
-                    int f = k / 2, g = (f + 1) % nf;
-                    double t = (k % 2) * 0.5;
-                    if (t == 0) g = f;
-                    if (dstT != null) Lerp(srcT, f, g, t, dstT, k);
-                    if (dstR != null) Slerp(srcR, f, g, t, dstR, k);
-                }
-            }
-
-            for (int j = 0; j < a.R.Length; j++)
+            for (int j = 0; j < nj; j++)
             {
                 if (a.R[j] == null) continue;
                 o.T[j] = new float[n2 * 3];
                 o.R[j] = new float[n2 * 4];
-                Fill(a.T[j], a.R[j], o.T[j], o.R[j]);
             }
-            Fill(a.RootT, a.RootR, o.RootT, o.RootR);
+
+            int ParentOf(int j) => j < joints.Count && joints[j].Parent < nj ? joints[j].Parent : -1;
+
+            // parents before children
+            List<int> order = new List<int>();
+            bool[] done = new bool[nj];
+            void Visit(int j)
+            {
+                if (done[j]) return;
+                done[j] = true;
+                int p = ParentOf(j);
+                if (p >= 0) Visit(p);
+                order.Add(j);
+            }
+            for (int j = 0; j < nj; j++) Visit(j);
+
+            double[][] accA = new double[nj][], accB = new double[nj][], accI = new double[nj][];
+
+            for (int k = 0; k < n2; k++)
+            {
+                int f = k / factor, g = (f + 1) % nf;
+                double t = (k % factor) / (double)factor;
+
+                if (k % factor == 0)
+                {
+                    // original frame, copied as stored
+                    for (int c = 0; c < 3; c++) o.RootT[k * 3 + c] = a.RootT[f * 3 + c];
+                    PutKey(o.RootR, k, Q(a.RootR, f));
+                    for (int j = 0; j < nj; j++)
+                    {
+                        if (a.R[j] == null) continue;
+                        for (int c = 0; c < 3; c++) o.T[j][k * 3 + c] = a.T[j][f * 3 + c];
+                        PutKey(o.R[j], k, Q(a.R[j], f));
+                    }
+                    continue;
+                }
+
+                double[] rootA = Q(a.RootR, f), rootB = Q(a.RootR, g), rootI = QSlerp(rootA, rootB, t);
+                double[] rootTA = V3(a.RootT, f), rootTB = V3(a.RootT, g), rootTI = V3Lerp(rootTA, rootTB, t);
+                for (int c = 0; c < 3; c++) o.RootT[k * 3 + c] = (float)rootTI[c];
+                PutKey(o.RootR, k, rootI);
+
+                foreach (int j in order)
+                {
+                    int p = ParentOf(j);
+                    double[] pa = p < 0 ? rootA : accA[p], pb = p < 0 ? rootB : accB[p], pi = p < 0 ? rootI : accI[p];
+                    accA[j] = QMul(pa, Q(a.R[j], f));
+                    accB[j] = QMul(pb, Q(a.R[j], g));
+                    accI[j] = QSlerp(accA[j], accB[j], t);
+                    if (a.R[j] == null) continue;
+
+                    double[] pInv = QConj(pi);
+                    PutKey(o.R[j], k, QMul(pInv, accI[j]));
+
+                    double[] tI;
+                    if (p < 0)
+                    {
+                        // placement under the root node: blend where it is in the scene, then make it
+                        // relative to the blended root again
+                        double[] wA = QRotate(rootA, V3(a.T[j], f)), wB = QRotate(rootB, V3(a.T[j], g));
+                        for (int c = 0; c < 3; c++) { wA[c] += rootTA[c]; wB[c] += rootTB[c]; }
+                        double[] wI = V3Lerp(wA, wB, t);
+                        for (int c = 0; c < 3; c++) wI[c] -= rootTI[c];
+                        tI = QRotate(pInv, wI);
+                    }
+                    else tI = V3Lerp(V3(a.T[j], f), V3(a.T[j], g), t);
+                    for (int c = 0; c < 3; c++) o.T[j][k * 3 + c] = (float)tI[c];
+                }
+            }
             return o;
         }
 

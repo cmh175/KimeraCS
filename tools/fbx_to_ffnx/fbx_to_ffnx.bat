@@ -4,7 +4,8 @@ rem
 rem The folder needs:
 rem   reference\<NAME>.gltf + .bin   KimeraCS export of the FF7 model being replaced (e.g. AAAC), with the
 rem                                  animations you are replacing. NAME becomes the output name.
-rem   character.fbx (or model.fbx)  the new model (optional if every animation FBX also contains it)
+rem   character.fbx (or model.fbx)  optional: the new model. Without it the model is taken from the idle's FBX
+rem                                  (the reference's first animation), since every animation FBX holds it too
 rem   ACFE.fbx, AAFF.fbx, ...       one FBX per animation, named after the FF7 animation it replaces
 rem Output: <folder>\ffnx\<NAME>.gltf + .bin + textures, and <NAME>_export_report.txt
 rem

@@ -14,7 +14,8 @@ Runs inside Blender 4.5 in the background (no Blender window):
                glTF joints, so the conversion takes it back out of the new model's animation; the model
                then stands and moves exactly where the original did.
   --name       glTF file name = one of the FF7 model's .p names (FFNx looks the model up by it), e.g. AAAC
-  --model      FBX with the mesh and skeleton (default: the first --anim file)
+  --model      FBX with the mesh and skeleton (default: the --anim file of the reference's first animation,
+               normally the idle; else the first --anim file)
   --anim       FBX=NAME: an FBX animation and the FF7 animation it replaces (4-letter name, e.g. ACFE).
                Without "=NAME" the file name is used (ACFE.fbx -> ACFE).
   --out        output folder (the .gltf, .bin and a textures folder with PNG + DDS go there)
@@ -72,7 +73,7 @@ for a in opt['anims']:
     path, _, name = a.partition('=')
     if not name: name = os.path.splitext(os.path.basename(path))[0]
     anims.append((path, name.upper()))
-model_path = opt['model'] or anims[0][0]
+model_path = opt['model']
 os.makedirs(os.path.join(opt['out'], 'textures'), exist_ok=True)
 
 report = []
@@ -171,6 +172,12 @@ def to_game(m_world, scale):
     return out
 
 # ---------------------------------------------------------------------------------------------- model
+if not model_path:
+    # every FBX holds the model too: take it from the reference's first animation (KimeraCS puts the default idle
+    # first), else from the first animation given
+    first = [a['name'][:4].upper() for a in ref.get('animations', [])] if ref else []
+    pick = [p for p, n in anims if first and n[:4] == first[0]]
+    model_path = pick[0] if pick else anims[0][0]
 log('Model: ' + model_path)
 arm = import_fbx(model_path)
 

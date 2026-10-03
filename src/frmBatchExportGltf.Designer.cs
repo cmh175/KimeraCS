@@ -46,6 +46,10 @@
             this.lblOut = new System.Windows.Forms.Label();
             this.gbOptions = new System.Windows.Forms.GroupBox();
             this.cbLoops = new System.Windows.Forms.ComboBox();
+            this.lblLimits = new System.Windows.Forms.Label();
+            this.txtLimits = new System.Windows.Forms.TextBox();
+            this.btnBrowseLimits = new System.Windows.Forms.Button();
+            this.lblLimitsHint = new System.Windows.Forms.Label();
             this.lblLoops = new System.Windows.Forms.Label();
             this.chk60fps = new System.Windows.Forms.CheckBox();
             this.chkBake = new System.Windows.Forms.CheckBox();
@@ -236,6 +240,10 @@
             //
             // gbOptions
             //
+            this.gbOptions.Controls.Add(this.lblLimitsHint);
+            this.gbOptions.Controls.Add(this.btnBrowseLimits);
+            this.gbOptions.Controls.Add(this.txtLimits);
+            this.gbOptions.Controls.Add(this.lblLimits);
             this.gbOptions.Controls.Add(this.cbLoops);
             this.gbOptions.Controls.Add(this.lblLoops);
             this.gbOptions.Controls.Add(this.chk60fps);
@@ -245,7 +253,7 @@
             this.gbOptions.Controls.Add(this.lblRest);
             this.gbOptions.Location = new System.Drawing.Point(12, 322);
             this.gbOptions.Name = "gbOptions";
-            this.gbOptions.Size = new System.Drawing.Size(736, 112);
+            this.gbOptions.Size = new System.Drawing.Size(736, 162);
             this.gbOptions.TabIndex = 3;
             this.gbOptions.TabStop = false;
             this.gbOptions.Text = "Options (all compatible animations; battle models with all weapons and limit breaks)";
@@ -348,6 +356,42 @@
             this.cbLoops.Size = new System.Drawing.Size(120, 23);
             this.cbLoops.TabIndex = 6;
             //
+            // lblLimits
+            //
+            this.lblLimits.AutoSize = true;
+            this.lblLimits.Location = new System.Drawing.Point(10, 113);
+            this.lblLimits.Name = "lblLimits";
+            this.lblLimits.Size = new System.Drawing.Size(76, 15);
+            this.lblLimits.TabIndex = 7;
+            this.lblLimits.Text = "Limit breaks:";
+            //
+            // txtLimits
+            //
+            this.txtLimits.Location = new System.Drawing.Point(120, 110);
+            this.txtLimits.Name = "txtLimits";
+            this.txtLimits.Size = new System.Drawing.Size(525, 23);
+            this.txtLimits.TabIndex = 8;
+            //
+            // btnBrowseLimits
+            //
+            this.btnBrowseLimits.Location = new System.Drawing.Point(651, 109);
+            this.btnBrowseLimits.Name = "btnBrowseLimits";
+            this.btnBrowseLimits.Size = new System.Drawing.Size(75, 25);
+            this.btnBrowseLimits.TabIndex = 9;
+            this.btnBrowseLimits.Text = "Browse...";
+            this.btnBrowseLimits.UseVisualStyleBackColor = true;
+            this.btnBrowseLimits.Click += new System.EventHandler(this.BtnBrowseLimits_Click);
+            //
+            // lblLimitsHint
+            //
+            this.lblLimitsHint.AutoSize = true;
+            this.lblLimitsHint.ForeColor = System.Drawing.SystemColors.GrayText;
+            this.lblLimitsHint.Location = new System.Drawing.Point(120, 137);
+            this.lblLimitsHint.Name = "lblLimitsHint";
+            this.lblLimitsHint.Size = new System.Drawing.Size(560, 15);
+            this.lblLimitsHint.TabIndex = 10;
+            this.lblLimitsHint.Text = "Folder with the limit break .A00 files (extracted magic.lgp). Empty: the magic folder next to battle.";
+            //
             // lvResults
             //
             this.lvResults.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
@@ -357,7 +401,7 @@
             this.colDetails});
             this.lvResults.FullRowSelect = true;
             this.lvResults.HideSelection = false;
-            this.lvResults.Location = new System.Drawing.Point(12, 440);
+            this.lvResults.Location = new System.Drawing.Point(12, 490);
             this.lvResults.Name = "lvResults";
             this.lvResults.Size = new System.Drawing.Size(736, 220);
             this.lvResults.TabIndex = 4;
@@ -387,7 +431,7 @@
             //
             // progress
             //
-            this.progress.Location = new System.Drawing.Point(12, 666);
+            this.progress.Location = new System.Drawing.Point(12, 716);
             this.progress.Name = "progress";
             this.progress.Size = new System.Drawing.Size(736, 14);
             this.progress.TabIndex = 5;
@@ -395,14 +439,14 @@
             // lblSummary
             //
             this.lblSummary.AutoSize = true;
-            this.lblSummary.Location = new System.Drawing.Point(12, 693);
+            this.lblSummary.Location = new System.Drawing.Point(12, 743);
             this.lblSummary.Name = "lblSummary";
             this.lblSummary.Size = new System.Drawing.Size(0, 15);
             this.lblSummary.TabIndex = 6;
             //
             // btnStart
             //
-            this.btnStart.Location = new System.Drawing.Point(376, 688);
+            this.btnStart.Location = new System.Drawing.Point(376, 738);
             this.btnStart.Name = "btnStart";
             this.btnStart.Size = new System.Drawing.Size(75, 28);
             this.btnStart.TabIndex = 7;
@@ -413,7 +457,7 @@
             // btnStop
             //
             this.btnStop.Enabled = false;
-            this.btnStop.Location = new System.Drawing.Point(457, 688);
+            this.btnStop.Location = new System.Drawing.Point(457, 738);
             this.btnStop.Name = "btnStop";
             this.btnStop.Size = new System.Drawing.Size(75, 28);
             this.btnStop.TabIndex = 8;
@@ -423,7 +467,7 @@
             //
             // btnOpenOut
             //
-            this.btnOpenOut.Location = new System.Drawing.Point(538, 688);
+            this.btnOpenOut.Location = new System.Drawing.Point(538, 738);
             this.btnOpenOut.Name = "btnOpenOut";
             this.btnOpenOut.Size = new System.Drawing.Size(129, 28);
             this.btnOpenOut.TabIndex = 9;
@@ -433,7 +477,7 @@
             //
             // btnClose
             //
-            this.btnClose.Location = new System.Drawing.Point(673, 688);
+            this.btnClose.Location = new System.Drawing.Point(673, 738);
             this.btnClose.Name = "btnClose";
             this.btnClose.Size = new System.Drawing.Size(75, 28);
             this.btnClose.TabIndex = 10;
@@ -445,7 +489,7 @@
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(760, 728);
+            this.ClientSize = new System.Drawing.Size(760, 778);
             this.Controls.Add(this.btnClose);
             this.Controls.Add(this.btnOpenOut);
             this.Controls.Add(this.btnStop);
@@ -506,6 +550,10 @@
         private System.Windows.Forms.CheckBox chk60fps;
         private System.Windows.Forms.Label lblLoops;
         private System.Windows.Forms.ComboBox cbLoops;
+        private System.Windows.Forms.Label lblLimits;
+        private System.Windows.Forms.TextBox txtLimits;
+        private System.Windows.Forms.Button btnBrowseLimits;
+        private System.Windows.Forms.Label lblLimitsHint;
         private System.Windows.Forms.ListView lvResults;
         private System.Windows.Forms.ColumnHeader colModel;
         private System.Windows.Forms.ColumnHeader colType;

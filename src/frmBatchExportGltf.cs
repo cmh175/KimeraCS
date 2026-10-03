@@ -27,7 +27,7 @@ namespace KimeraCS
     public partial class FrmBatchExportGltf : Form
     {
         // Remembered while Kimera is open.
-        private static string lastSource = "", lastOut = "", lastModels = "";
+        private static string lastSource = "", lastOut = "", lastModels = "", lastLimits = "";
         private static bool lastPerModel = false, lastRestZero = false, lastDDS = true, lastBake = true, last60fps = false;
         private static int lastLoops = 1;      // All loop: safe with the 60FPS mod's frame counts
 
@@ -59,6 +59,7 @@ namespace KimeraCS
             txtSource.Text = lastSource != "" ? lastSource : (defaultSourceFolder ?? "");
             txtOut.Text = lastOut;
             txtModels.Text = lastModels;
+            txtLimits.Text = lastLimits;
             rbPerModel.Checked = lastPerModel;
             rbRestZero.Checked = lastRestZero;
             chkDDS.Checked = lastDDS;
@@ -211,6 +212,14 @@ namespace KimeraCS
             if (f != null) txtOut.Text = f;
         }
 
+        // Limit break packs (.A00) live in magic.lgp. Model-only mods (e.g. Ninostyle) don't include them, so
+        // the vanilla magic folder can be chosen here; empty = the magic folder next to the battle folder.
+        private void BtnBrowseLimits_Click(object sender, EventArgs e)
+        {
+            string f = PickFolder(txtLimits.Text, "Folder with the limit break (.A00) files (extracted magic.lgp)");
+            if (f != null) txtLimits.Text = f;
+        }
+
         private void BtnOpenOut_Click(object sender, EventArgs e)
         {
             if (Directory.Exists(txtOut.Text.Trim()))
@@ -253,6 +262,7 @@ namespace KimeraCS
                 case Kind.Battle:
                 case Kind.Magic:
                     a.AddRange(new[] { GltfCommandLine.SWITCH_BATTLE, j.File, "--out", outDir });
+                    if (j.Kind == Kind.Battle && txtLimits.Text.Trim() != "") a.AddRange(new[] { "--limits-dir", txtLimits.Text.Trim() });
                     break;
                 default:
                     a.AddRange(new[] { GltfCommandLine.SWITCH_STATIC, j.File, "--out", outDir });
@@ -311,7 +321,10 @@ namespace KimeraCS
             if (outRoot == "") { MessageBox.Show("Choose an output folder.", Text); return; }
             if (entries.Count == 0) { MessageBox.Show("Add at least one model to the list.", Text); return; }
 
-            lastSource = dir; lastOut = outRoot; lastModels = txtModels.Text;
+            string limitsDir = txtLimits.Text.Trim();
+            if (limitsDir != "" && !Directory.Exists(limitsDir)) { MessageBox.Show("The limit breaks folder doesn't exist.", Text); return; }
+
+            lastSource = dir; lastOut = outRoot; lastModels = txtModels.Text; lastLimits = limitsDir;
             lastPerModel = rbPerModel.Checked; lastRestZero = rbRestZero.Checked;
             lastDDS = chkDDS.Checked; lastBake = chkBake.Checked; last60fps = chk60fps.Checked;
             lastLoops = Math.Max(0, cbLoops.SelectedIndex);

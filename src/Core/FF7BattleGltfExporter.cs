@@ -53,6 +53,8 @@ namespace KimeraCS
             public string AnimationPackFile = "";          // ??DA or .A00; "" = none
             public List<int> AnimationIndexes = null;      // null = all animations with frames
             public List<string> LimitPackFiles = new List<string>();
+            public string LimitsSearchFolder = null;       // set when limit packs were looked up there and none
+                                                           // were found: the report warns if the model has some
             public bool To60Fps = false;                   // 15 -> 60 fps conversion (battle animations are 15 fps)
             public GltfRigExporter.LoopMode Loops = GltfRigExporter.LoopMode.All;
         }
@@ -107,6 +109,18 @@ namespace KimeraCS
         }
 
         // Limit break packs of a battle model (Kimera's limit table in FileTools), found in folder.
+        // The limit break packs Kimera's limit table lists for a battle model (none for enemies).
+        public static List<string> ExpectedLimitPacks(string skeletonFileName)
+        {
+            List<string> expected = new List<string>();
+            if (FileTools.lstBattleLimitsAnimations == null) FileTools.PrepareLimitsFilterFile();
+            string model = Path.GetFileName(skeletonFileName).ToUpperInvariant();
+            foreach (FileTools.STLimitsRegister reg in FileTools.lstBattleLimitsAnimations)
+                if (reg.lstModelNames != null && reg.lstModelNames.Contains(model))
+                    expected.AddRange(reg.lstLimitsAnimations);
+            return expected;
+        }
+
         public static List<string> FindLimitPacks(string skeletonFileName, string folder)
         {
             List<string> found = new List<string>();
@@ -416,6 +430,16 @@ namespace KimeraCS
                                                              isMagic ? 0 : skel.nsWeaponsAnims, false);
                         AddPack(pack, "ANIM", opt.AnimationIndexes);
                     }
+                }
+
+                if (!isMagic && opt.LimitPackFiles.Count == 0 && opt.LimitsSearchFolder != null)
+                {
+                    List<string> expected = ExpectedLimitPacks(skel.fileName);
+                    if (expected.Count > 0)
+                        res.Warnings.Add("No limit breaks exported: " + skel.fileName.ToUpperInvariant() + " has " +
+                                         string.Join(", ", expected.Select(Path.GetFileNameWithoutExtension)) +
+                                         ", but none were found in " + opt.LimitsSearchFolder +
+                                         ". Point the limit breaks folder at an extracted magic.lgp (model-only mods don't include them).");
                 }
 
                 foreach (string lp in opt.LimitPackFiles)

@@ -338,7 +338,10 @@ namespace KimeraCS
                 {
                     string dir = limitsDir ?? FF7BattleGltfExporter.DefaultLimitsFolder(folder);
                     if (limits.ToLowerInvariant() == "auto")
+                    {
                         opt.LimitPackFiles = FF7BattleGltfExporter.FindLimitPacks(model, dir);
+                        if (opt.LimitPackFiles.Count == 0) opt.LimitsSearchFolder = dir;
+                    }
                     else if (limits.ToLowerInvariant() != "none")
                         opt.LimitPackFiles = limits.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
                                                    .Select(s => Path.Combine(dir, s.ToUpperInvariant().EndsWith(".A00") ? s : s + ".A00"))

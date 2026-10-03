@@ -300,6 +300,7 @@ namespace KimeraCS
                 AnimationPackFile = checkedIndexes.Count > 0 ? packFile : "",
                 AnimationIndexes = checkedIndexes.OrderBy(i => i).ToList(),
                 LimitPackFiles = limits,
+                LimitsSearchFolder = !isMagic && limitFiles.Count == 0 ? txtLimitsFolder.Text.Trim() : null,
                 To60Fps = chk60fps.Checked,
                 Loops = cbLoops.SelectedIndex == 1 ? GltfRigExporter.LoopMode.All
                       : cbLoops.SelectedIndex == 2 ? GltfRigExporter.LoopMode.None

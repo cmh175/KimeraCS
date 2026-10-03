@@ -7,12 +7,16 @@ Runs inside Blender 4.5 in the background (no Blender window):
     blender -b --factory-startup -P fbx_to_ffnx.py -- --reference AAAC.gltf --name AAAC --out <folder>
             --model Character.fbx --anim Idle.fbx=ACFE --anim Walk.fbx=AAFF
 
-  --reference  a KimeraCS glTF export of the FF7 model being replaced (same animations). It supplies:
-               the target height (the new model is scaled to the same height), the frame count of each
-               animation (checked) and the game's root motion per frame. FFNx applies the game's own root
-               motion (the .a file's root translation and rotation: standing height, jumps) on top of the
-               glTF joints, so the conversion takes it back out of the new model's animation; the model
-               then stands and moves exactly where the original did.
+  --reference  a KimeraCS glTF export of the FF7 model being replaced (same animations). It supplies the
+               target height (the new model is scaled to the same height), the frame count of each animation
+               (compared) and, for --root-motion game, the game's root motion per frame.
+  --root-motion  gltf (default): the new model's animation is kept as made, hip height and travel included.
+               The "ff7_root" node gets still keys, which tells FFNx (with its animation-independence work,
+               2026-10) to use the glTF's own root motion instead of the game's. FFNx 1.24.0 ignores root
+               motion entirely, so this is right there too.
+               game: for FFNx builds that apply the game's .a root motion (standing height, jumps) on top of
+               the glTF joints: that root motion is taken back out of the new animation frame by frame (taken
+               from the reference), so the model stands and moves where the original did.
   --name       glTF file name = one of the FF7 model's .p names (FFNx looks the model up by it), e.g. AAAC
   --model      FBX with the mesh and skeleton (default: the --anim file of the reference's first animation,
                normally the idle; else the first --anim file)
@@ -23,8 +27,8 @@ Runs inside Blender 4.5 in the background (no Blender window):
   --max-texture  largest texture side in pixels (default 1024)
 
 Conventions (same as KimeraCS's exporter, see GltfRigExporter.cs):
-  - joints are in FF7's own space (Y down) under a scene node "ff7_root" that holds the 180 degree turn and the
-    game's root motion for viewers; FFNx skips that node and applies the game's root motion itself
+  - joints are in FF7's own space (Y down) under a scene node "ff7_root" that holds the 180 degree turn (and,
+    for --root-motion game, the game's root motion for viewers)
   - every joint has translation and rotation keys in every animation, one key per frame
   - each accessor in its own bufferView, JOINTS_0 unsigned byte, skin joints in depth-first order
   - image names match their file names; textures written as PNG and uncompressed DDS
@@ -40,7 +44,8 @@ from mathutils import Matrix, Quaternion, Vector
 
 # ---------------------------------------------------------------------------------------------- arguments
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
-opt = {'anims': [], 'model': None, 'reference': None, 'name': None, 'out': None, 'height': None, 'max_texture': 1024}
+opt = {'anims': [], 'model': None, 'reference': None, 'name': None, 'out': None, 'height': None, 'max_texture': 1024,
+       'root_motion': 'gltf'}
 i = 0
 while i < len(argv):
     a = argv[i]
@@ -48,6 +53,9 @@ while i < len(argv):
     elif a in ('--model', '--reference', '--name', '--out'): opt[a[2:]] = argv[i + 1]; i += 2
     elif a == '--height': opt['height'] = float(argv[i + 1]); i += 2
     elif a == '--max-texture': opt['max_texture'] = int(argv[i + 1]); i += 2
+    elif a == '--root-motion':
+        opt['root_motion'] = argv[i + 1].lower(); i += 2
+        if opt['root_motion'] not in ('gltf', 'game'): raise SystemExit('--root-motion is gltf or game')
     elif a == '--folder':
         # Folder mode (fbx_to_ffnx.bat): <folder>\reference\<NAME>.gltf is the KimeraCS export of the FF7 model,
         # <folder>\character.fbx (or model.fbx) the mesh, every other .fbx an animation named after its file
@@ -134,10 +142,14 @@ if ref:
         ref_anims[an['name'][:4].upper()] = (rt, rr, frames)
     log('Reference: %s (height %.2f FF7 units, animations %s)' % (opt['reference'], ref_height, ', '.join(sorted(ref_anims))))
 else:
-    warnings.append('No --reference: no height match and no root-motion compensation (the model may float in FFNx).')
+    warnings.append('No --reference: no height match' +
+                    (' and no root-motion compensation (the model may float in FFNx).' if opt['root_motion'] == 'game' else '.'))
 
 def game_root(name, k):
-    """The game's root placement (FF7 space) at frame k of animation `name`, from the reference."""
+    """The game's root placement (FF7 space) at frame k of animation `name`, from the reference. With
+    --root-motion gltf the new animation carries its own placement: none."""
+    if opt['root_motion'] == 'gltf':
+        return Matrix.Identity(4)
     a = ref_anims.get(name[:4])
     if not a or not a[0] or not a[1]:
         return F4 @ ref_root_rest
@@ -206,7 +218,9 @@ scale = target_height / src_height if target_height else 1.0
 log('Size: %.3f in the FBX -> %.2f FF7 units (x%.3f)' % (src_height, src_height * scale, scale))
 
 rest_game = [to_game(arm.matrix_world @ arm.data.bones[n].matrix_local, scale) for n in joints]
-root_rest = F4 @ ref_root_rest
+root_rest = F4 @ ref_root_rest if opt['root_motion'] == 'game' else Matrix.Identity(4)
+log('Root motion: ' + ('from the game (taken back out of the new animation)' if opt['root_motion'] == 'game'
+                       else 'the new animation\'s own (glTF root motion)'))
 
 def locals_from_world(world_game, groot):
     inv_root = rigid_inverse(groot)
@@ -326,7 +340,7 @@ def quat_xyzw(q): return [q.x, q.y, q.z, q.w]
 
 # nodes: ff7_root, joints, meshes
 root_node = 0
-rt, rq, _ = decompose(ref_root_rest)
+rt, rq, _ = decompose(F4 @ root_rest)          # the 180 degree turn (+ the game's rest placement)
 gl['nodes'].append({'name': 'ff7_root', 'translation': list(rt), 'rotation': quat_xyzw(rq), 'children': []})
 joint_node = []
 for i, n in enumerate(joints):
@@ -478,11 +492,16 @@ for path, name in anims:
     gl['animations'].append({'name': name, 'channels': channels, 'samplers': samplers})
     ref_frames = ref_anims.get(name[:4], (None, None, 0))[2] if ref else 0
     note = ''
-    if ref and name[:4] not in ref_anims: note = '  (not in the reference: no root-motion compensation)'
+    if ref and name[:4] not in ref_anims:
+        note = '  (not in the reference%s)' % (': no root-motion compensation' if opt['root_motion'] == 'game' else '')
     elif ref_frames and ref_frames != nframes:
-        note = '  WARNING: the game animation has %d frames' % ref_frames
-        warnings.append('%s: %d frames, but the game animation has %d (FFNx plays the game\'s frame count; '
-                        'extra frames are never shown, missing ones hold the last pose).' % (name, nframes, ref_frames))
+        if opt['root_motion'] == 'gltf':
+            # FFNx with animation independence stretches the animation over the game's length
+            note = '  (the game animation has %d frames: FFNx stretches it to fit; FFNx 1.24.0 shows one key per frame)' % ref_frames
+        else:
+            note = '  WARNING: the game animation has %d frames' % ref_frames
+            warnings.append('%s: %d frames, but the game animation has %d (FFNx plays the game\'s frame count; '
+                            'extra frames are never shown, missing ones hold the last pose).' % (name, nframes, ref_frames))
     log('  %s <- %s: %d frame(s)%s' % (name, os.path.basename(path), nframes, note))
 
 # ---------------------------------------------------------------------------------------------- write

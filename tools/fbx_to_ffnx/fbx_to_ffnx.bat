@@ -9,6 +9,10 @@ rem                                  (the reference's first animation), since ev
 rem   ACFE.fbx, AAFF.fbx, ...       one FBX per animation, named after the FF7 animation it replaces
 rem Output: <folder>\ffnx\<NAME>.gltf + .bin + textures, and <NAME>_export_report.txt
 rem
+rem Root motion: by default the new animations keep their own hip height and travel (FFNx with animation
+rem independence uses the glTF's root motion; FFNx 1.24.0 ignores root motion). For FFNx builds that apply the
+rem game's root motion instead, run from a command line: fbx_to_ffnx.bat <folder> --root-motion game
+rem
 rem Needs Blender 4.5 (set BLENDER below if it is installed somewhere else).
 
 set "BLENDER=C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
@@ -23,8 +27,8 @@ if "%~1"=="" (
     exit /b 1
 )
 
-"%BLENDER%" -b --factory-startup -P "%~dp0fbx_to_ffnx.py" -- --folder "%~1" > "%TEMP%\fbx_to_ffnx.log" 2>&1
-findstr /b /c:"  " /c:"Reference" /c:"Model" /c:"Skeleton" /c:"Size" /c:"Meshes" /c:"Animations" /c:"Warnings" /c:"Written" "%TEMP%\fbx_to_ffnx.log"
+"%BLENDER%" -b --factory-startup -P "%~dp0fbx_to_ffnx.py" -- --folder %* > "%TEMP%\fbx_to_ffnx.log" 2>&1
+findstr /b /c:"  " /c:"Reference" /c:"Model" /c:"Root motion" /c:"Skeleton" /c:"Size" /c:"Meshes" /c:"Animations" /c:"Warnings" /c:"Written" "%TEMP%\fbx_to_ffnx.log"
 findstr /c:"FBX_TO_FFNX_DONE" "%TEMP%\fbx_to_ffnx.log" >nul
 if errorlevel 1 (
     echo.

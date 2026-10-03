@@ -6905,7 +6905,7 @@ namespace KimeraCS
                     if (IsRSDResource)
                     {
                         FieldSkeleton rsdSkeleton = fSkeleton;
-                        ShowStaticExport(fSkeleton.fileName + " (RSD resource)", fSkeleton.fileName,
+                        ShowStaticExport(fSkeleton.fileName + " (RSD resource)", FF7FieldGltfExporter.FirstPieceName(fSkeleton),
                                          opt => FF7StaticGltfExporter.ExportRSD(rsdSkeleton, opt));
                         return;
                     }
@@ -6922,7 +6922,8 @@ namespace KimeraCS
                     if (bSkeleton.IsBattleLocation)
                     {
                         BattleSkeleton location = bSkeleton;
-                        ShowStaticExport(bSkeleton.fileName + " (battle scene, " + bSkeleton.bones.Count + " pieces)", bSkeleton.fileName,
+                        ShowStaticExport(bSkeleton.fileName + " (battle scene, " + bSkeleton.bones.Count + " pieces)",
+                                         FF7BattleGltfExporter.FirstPieceName(bSkeleton, false),
                                          opt => FF7StaticGltfExporter.ExportBattleLocation(location, opt));
                         return;
                     }

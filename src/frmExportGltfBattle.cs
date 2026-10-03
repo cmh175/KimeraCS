@@ -70,13 +70,20 @@ namespace KimeraCS
                 rbRestZero.Checked = true;
             }
 
-            // file names: the skeleton file, or (battle) one of the part files. Magic parts are
-            // <name>.P00 ...; FFNx drops the extension, which leaves the magic model's own name.
-            cbFileName.Items.Add(isMagic ? baseName : modelName);
+            // file names: FFNx looks for mesh\field\<piece>.gltf, so the default is the first piece (Cloud: RTAM),
+            // then the other pieces, then the skeleton file. Magic pieces are <name>.P00 ...; FFNx drops the
+            // extension, which leaves the magic model's own name.
+            cbFileName.Items.Add(FF7BattleGltfExporter.FirstPieceName(bSkeleton, isMagic));
             if (!isMagic)
+            {
                 for (int bi = 0; bi < bSkeleton.bones.Count; bi++)
                     if (bSkeleton.bones[bi].hasModel != 0)
-                        cbFileName.Items.Add(FF7BattleGltfExporter.BattlePartName(baseName, bi));
+                    {
+                        string piece = FF7BattleGltfExporter.BattlePartName(baseName, bi);
+                        if (!cbFileName.Items.Contains(piece)) cbFileName.Items.Add(piece);
+                    }
+                if (!cbFileName.Items.Contains(modelName)) cbFileName.Items.Add(modelName);
+            }
             cbFileName.SelectedIndex = 0;
 
             // animation pack (read from disk, like the export does)

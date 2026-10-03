@@ -85,12 +85,14 @@ namespace KimeraCS
                 if (opt.OutputFolder == "") throw new ArgumentException("--out is required");
 
                 string folder = Path.GetDirectoryName(Path.GetFullPath(file));
-                string name = Path.GetFileNameWithoutExtension(file).ToUpperInvariant();
                 string ext = Path.GetExtension(file).ToUpperInvariant();
-                if (string.IsNullOrWhiteSpace(opt.FileName)) opt.FileName = name;
-
+                // Without --name each exporter names the file after the model's first piece (an RSD's .p file,
+                // a battle scene's first piece); the report follows that name once it is known.
+                bool namedReport = reportPath != null;
                 Directory.CreateDirectory(opt.OutputFolder);
-                if (reportPath == null) reportPath = Path.Combine(opt.OutputFolder, opt.FileName + "_export_report.txt");
+                if (!namedReport)
+                    reportPath = Path.Combine(opt.OutputFolder, (string.IsNullOrWhiteSpace(opt.FileName)
+                        ? Path.GetFileNameWithoutExtension(file).ToUpperInvariant() : opt.FileName) + "_export_report.txt");
 
                 FileTools.bDontCheckRepairPolys = true;
                 if (FileTools.lstBattleLimitsAnimations == null) FileTools.PrepareLimitsFilterFile();
@@ -122,6 +124,8 @@ namespace KimeraCS
                     res = FF7StaticGltfExporter.ExportBattleLocation(bSkeleton, opt);
                 }
 
+                if (!namedReport && !string.IsNullOrWhiteSpace(opt.FileName))
+                    reportPath = Path.Combine(opt.OutputFolder, opt.FileName + "_export_report.txt");
                 WriteReport(reportPath, GltfRigExporter.FormatReport(res));
                 return res.Success ? 0 : 1;
             }
@@ -207,14 +211,9 @@ namespace KimeraCS
                 if (LoadSkeleton(hrc, true) != 1 || modelType != K_HRC_SKELETON)
                     throw new InvalidOperationException("Could not load " + hrc + " as a field model.");
 
-                // --name p: the model's first .p file (FFNx loads mesh\field\<p name>.gltf)
-                if (string.Equals(opt.FileName, "p", StringComparison.OrdinalIgnoreCase))
-                {
-                    opt.FileName = fSkeleton.bones.SelectMany(b => b.fRSDResources ?? new List<FF7FieldRSDResource.FieldRSDResource>())
-                                                 .Select(r => Path.GetFileNameWithoutExtension(r.Model.fileName ?? r.res_file ?? ""))
-                                                 .FirstOrDefault(n => !string.IsNullOrEmpty(n))?.ToUpperInvariant() ?? "";
-                }
-                if (string.IsNullOrWhiteSpace(opt.FileName)) opt.FileName = Path.GetFileNameWithoutExtension(hrc).ToUpperInvariant();
+                // default (and --name p): the model's first .p file (FFNx loads mesh\field\<p name>.gltf)
+                if (string.IsNullOrWhiteSpace(opt.FileName) || string.Equals(opt.FileName, "p", StringComparison.OrdinalIgnoreCase))
+                    opt.FileName = FF7FieldGltfExporter.FirstPieceName(fSkeleton);
                 if (reportPath == null) reportPath = Path.Combine(opt.OutputFolder, opt.FileName + "_export_report.txt");
 
                 // --anims all: every compatible animation (Ifalna order, so the default idle comes first)
@@ -301,10 +300,12 @@ namespace KimeraCS
                 if (opt.OutputFolder == "") throw new ArgumentException("--out is required");
 
                 string folder = Path.GetDirectoryName(Path.GetFullPath(model));
-                if (string.IsNullOrWhiteSpace(opt.FileName)) opt.FileName = Path.GetFileNameWithoutExtension(model).ToUpperInvariant();
 
                 Directory.CreateDirectory(opt.OutputFolder);
-                if (reportPath == null) reportPath = Path.Combine(opt.OutputFolder, opt.FileName + "_export_report.txt");
+                bool namedReport = reportPath != null;
+                if (!namedReport)
+                    reportPath = Path.Combine(opt.OutputFolder, (string.IsNullOrWhiteSpace(opt.FileName)
+                        ? Path.GetFileNameWithoutExtension(model).ToUpperInvariant() : opt.FileName) + "_export_report.txt");
 
                 FileTools.bDontCheckRepairPolys = true;
 
@@ -314,6 +315,11 @@ namespace KimeraCS
                 if (LoadSkeleton(model, true) != 1 || (modelType != K_AA_SKELETON && modelType != K_MAGIC_SKELETON))
                     throw new InvalidOperationException("Could not load " + model + " as a battle or magic model.");
                 bool isMagic = modelType == K_MAGIC_SKELETON;
+
+                // default: the model's first piece (Cloud: RTAM; magic: the model's own name), which is what
+                // FFNx looks for; the report follows that name
+                if (string.IsNullOrWhiteSpace(opt.FileName)) opt.FileName = FF7BattleGltfExporter.FirstPieceName(bSkeleton, isMagic);
+                if (!namedReport) reportPath = Path.Combine(opt.OutputFolder, opt.FileName + "_export_report.txt");
 
                 // main animation pack (the one Kimera loads with the model)
                 string packName = isMagic ? Path.GetFileNameWithoutExtension(model).ToUpperInvariant() + ".A00"

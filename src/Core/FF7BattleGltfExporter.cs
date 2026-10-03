@@ -60,6 +60,18 @@ namespace KimeraCS
         public class Result : GltfRigExporter.Result { }
 
         // Part file names, same suffix walk as the BattleSkeleton constructor (??AM, ??AN, .. ??AZ, ??BA ..).
+        // The glTF name FFNx looks for: FFNx loads mesh\field\<piece>.gltf for each piece (.p file) it loads,
+        // so the export is named after the model's first piece (Cloud: RTAM), not the skeleton (RTAA). Magic
+        // pieces are <name>.P00 ...; FFNx drops the extension, which leaves the magic model's own name.
+        public static string FirstPieceName(BattleSkeleton skel, bool isMagic)
+        {
+            if (isMagic) return Path.GetFileNameWithoutExtension(skel.fileName).ToUpperInvariant();
+            string baseName = skel.fileName.Substring(0, 2).ToUpperInvariant();
+            for (int bi = 0; bi < (skel.bones?.Count ?? 0); bi++)
+                if (skel.bones[bi].hasModel != 0) return BattlePartName(baseName, bi);
+            return skel.fileName.ToUpperInvariant();
+        }
+
         public static string BattlePartName(string baseName, int boneIndex)
         {
             int s1 = 'A', s2 = 'M';
@@ -160,8 +172,7 @@ namespace KimeraCS
 
                 string baseName = isMagic ? Path.GetFileNameWithoutExtension(skel.fileName).ToUpperInvariant()
                                           : skel.fileName.Substring(0, 2).ToUpperInvariant();
-                if (string.IsNullOrWhiteSpace(opt.FileName))
-                    opt.FileName = isMagic ? baseName : skel.fileName.ToUpperInvariant();
+                if (string.IsNullOrWhiteSpace(opt.FileName)) opt.FileName = FirstPieceName(skel, isMagic);
                 if (opt.Fps <= 0) opt.Fps = 30;
                 if (opt.To60Fps) opt.Fps = 15;            // battle animations are 15 fps: four keys per frame
 

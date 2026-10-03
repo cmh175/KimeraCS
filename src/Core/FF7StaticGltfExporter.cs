@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -98,7 +98,7 @@ namespace KimeraCS
         {
             Result res = new Result();
             GltfRigExporter.Rig rig = NewRig();
-            DefaultName(opt, Path.GetFileNameWithoutExtension(skel.fileName ?? "model"));
+            DefaultName(opt, FF7FieldGltfExporter.FirstPieceName(skel));     // the RSD's .p name
 
             foreach (FieldBone bone in skel.bones)
                 for (int ri = 0; ri < bone.nResources; ri++)
@@ -197,7 +197,7 @@ namespace KimeraCS
             Result res = new Result();
             GltfRigExporter.Rig rig = NewRig();
             string baseName = skel.fileName.Substring(0, 2).ToUpperInvariant();
-            DefaultName(opt, skel.fileName);
+            DefaultName(opt, FF7BattleGltfExporter.FirstPieceName(skel, false));
 
             List<TEX> textures = skel.textures;
             Func<int, TEX?> texOf = texID => textures != null && texID >= 0 && texID < textures.Count ? textures[texID] : (TEX?)null;

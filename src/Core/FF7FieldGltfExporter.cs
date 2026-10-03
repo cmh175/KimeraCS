@@ -158,6 +158,20 @@ namespace KimeraCS
             return list;
         }
 
+        // The glTF name FFNx looks for: FFNx loads mesh\field\<p name>.gltf for each .p file it loads, so the
+        // export is named after the model's first .p file (Cloud: AAAC), not the skeleton (AAAA.HRC).
+        public static string FirstPieceName(FieldSkeleton skel)
+        {
+            foreach (FieldBone bone in skel.bones ?? new List<FieldBone>())
+                for (int ri = 0; ri < bone.nResources; ri++)
+                {
+                    FieldRSDResource res = bone.fRSDResources[ri];
+                    string p = Path.GetFileNameWithoutExtension(res.Model.fileName ?? res.res_file ?? "");
+                    if (!string.IsNullOrEmpty(p)) return p.ToUpperInvariant();
+                }
+            return Path.GetFileNameWithoutExtension(skel.fileName ?? "model").ToUpperInvariant();
+        }
+
         private static bool IsBroken(FieldFrame frame, int nBones)
         {
             if (frame.rotations == null || frame.rotations.Count < nBones) return true;
@@ -186,7 +200,7 @@ namespace KimeraCS
                     res.Errors.Add("The model has no bones.");
                     return res;
                 }
-                if (string.IsNullOrWhiteSpace(opt.FileName)) opt.FileName = skel.fileName.Split('.')[0];
+                if (string.IsNullOrWhiteSpace(opt.FileName)) opt.FileName = FirstPieceName(skel);
                 if (opt.Fps <= 0) opt.Fps = 30;
                 if (opt.To60Fps) opt.Fps = 30;            // field animations are 30 fps: two keys per frame
 

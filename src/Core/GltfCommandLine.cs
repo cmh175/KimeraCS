@@ -10,6 +10,7 @@ namespace KimeraCS
     using static FF7Skeleton;
     using static FF7FieldAnimation;
     using static FF7BattleAnimation;
+    using static FF7BattleAnimationsPack;
     using static FF7PModel;
     using static FF7TMDModel;
 
@@ -33,6 +34,8 @@ namespace KimeraCS
     //   KimeraCS.exe --export-gltf-battle <model> --out <folder>
     //                [--name RTAA] [--fps 30] [--prefix cloud_b] [--no-dds] [--no-bake]
     //                [--anims all|none|0,1,5] [--limits auto|none|LIMCL2,BLAVER] [--limits-dir <folder>]
+    //   --limits-dir: folder with the limit break .A00 files (an extracted magic.lgp); summon models also take
+    //   their animations (<name>.A00) from it when there is none next to the model (model-only mods).
     //                [--weapons all|current|none] [--weapon 0] [--rest zero|frame] [--rest-anim 0[:frame]]
     //                [--60fps] [--loops all|auto|none]
     //
@@ -326,6 +329,15 @@ namespace KimeraCS
                 string packName = isMagic ? Path.GetFileNameWithoutExtension(model).ToUpperInvariant() + ".A00"
                                           : Path.GetFileName(model).Substring(0, 2).ToUpperInvariant() + "DA";
                 string packFile = Path.Combine(folder, packName);
+                // summon models from model-only mods: their animations are in the (vanilla) magic folder, the
+                // same folder as the limit breaks (--limits-dir)
+                BattleAnimationsPack restPack = bAnimationsPack;
+                if (isMagic && !File.Exists(packFile) && limitsDir != null && File.Exists(Path.Combine(limitsDir, packName)))
+                {
+                    packFile = Path.Combine(limitsDir, packName);
+                    restPack = FF7BattleGltfExporter.ReadPack(packFile, bSkeleton.nBones, bSkeleton.nsSkeletonAnims, 0, false);
+                }
+                bool packMissing = anims.ToLowerInvariant() != "none" && !File.Exists(packFile);
                 if (anims.ToLowerInvariant() != "none" && File.Exists(packFile))
                 {
                     opt.AnimationPackFile = packFile;
@@ -353,20 +365,24 @@ namespace KimeraCS
                 string[] rp = restAnim.Split(':');
                 int ra = int.Parse(rp[0], CultureInfo.InvariantCulture);
                 int rf = rp.Length > 1 ? int.Parse(rp[1], CultureInfo.InvariantCulture) : 0;
-                if (bAnimationsPack.SkeletonAnimations != null && ra < bAnimationsPack.SkeletonAnimations.Count &&
-                    bAnimationsPack.SkeletonAnimations[ra].frames != null && bAnimationsPack.SkeletonAnimations[ra].frames.Count > 0)
+                if (restPack.SkeletonAnimations != null && ra < restPack.SkeletonAnimations.Count &&
+                    restPack.SkeletonAnimations[ra].frames != null && restPack.SkeletonAnimations[ra].frames.Count > 0)
                 {
-                    List<BattleFrame> fr = bAnimationsPack.SkeletonAnimations[ra].frames;
+                    List<BattleFrame> fr = restPack.SkeletonAnimations[ra].frames;
                     opt.RestFrame = fr[Math.Min(rf, fr.Count - 1)];
-                    if (bAnimationsPack.WeaponAnimations != null && ra < bAnimationsPack.WeaponAnimations.Count &&
-                        bAnimationsPack.WeaponAnimations[ra].frames != null && bAnimationsPack.WeaponAnimations[ra].frames.Count > 0)
+                    if (restPack.WeaponAnimations != null && ra < restPack.WeaponAnimations.Count &&
+                        restPack.WeaponAnimations[ra].frames != null && restPack.WeaponAnimations[ra].frames.Count > 0)
                     {
-                        List<BattleFrame> wf = bAnimationsPack.WeaponAnimations[ra].frames;
+                        List<BattleFrame> wf = restPack.WeaponAnimations[ra].frames;
                         opt.RestWeaponFrame = wf[Math.Min(rf, wf.Count - 1)];
                     }
                 }
 
                 FF7BattleGltfExporter.Result res = FF7BattleGltfExporter.Export(bSkeleton, isMagic, opt);
+                if (packMissing)
+                    res.Warnings.Add("No animations exported: " + packName + " is not next to the model" +
+                                     (isMagic && limitsDir != null ? " or in " + limitsDir : "") +
+                                     (isMagic ? ". Summon animations are in magic.lgp: point the magic animations folder (batch export) at an extracted magic.lgp." : "."));
                 WriteReport(reportPath, GltfRigExporter.FormatReport(res));
                 return res.Success ? 0 : 1;
             }

@@ -212,11 +212,12 @@ namespace KimeraCS
             if (f != null) txtOut.Text = f;
         }
 
-        // Limit break packs (.A00) live in magic.lgp. Model-only mods (e.g. Ninostyle) don't include them, so
-        // the vanilla magic folder can be chosen here; empty = the magic folder next to the battle folder.
+        // Limit break packs and summon animations (.A00) live in magic.lgp. Model-only mods (e.g. Ninostyle) don't
+        // include them, so the vanilla magic folder can be chosen here; empty = the magic folder next to the battle
+        // folder (limit breaks) / the summon model's own folder.
         private void BtnBrowseLimits_Click(object sender, EventArgs e)
         {
-            string f = PickFolder(txtLimits.Text, "Folder with the limit break (.A00) files (extracted magic.lgp)");
+            string f = PickFolder(txtLimits.Text, "Folder with the limit break and summon animation (.A00) files (extracted magic.lgp)");
             if (f != null) txtLimits.Text = f;
         }
 
@@ -262,7 +263,8 @@ namespace KimeraCS
                 case Kind.Battle:
                 case Kind.Magic:
                     a.AddRange(new[] { GltfCommandLine.SWITCH_BATTLE, j.File, "--out", outDir });
-                    if (j.Kind == Kind.Battle && txtLimits.Text.Trim() != "") a.AddRange(new[] { "--limits-dir", txtLimits.Text.Trim() });
+                    // limit breaks for battle characters; summon animations for summon models without any
+                    if (txtLimits.Text.Trim() != "") a.AddRange(new[] { "--limits-dir", txtLimits.Text.Trim() });
                     break;
                 default:
                     a.AddRange(new[] { GltfCommandLine.SWITCH_STATIC, j.File, "--out", outDir });
@@ -322,7 +324,7 @@ namespace KimeraCS
             if (entries.Count == 0) { MessageBox.Show("Add at least one model to the list.", Text); return; }
 
             string limitsDir = txtLimits.Text.Trim();
-            if (limitsDir != "" && !Directory.Exists(limitsDir)) { MessageBox.Show("The limit breaks folder doesn't exist.", Text); return; }
+            if (limitsDir != "" && !Directory.Exists(limitsDir)) { MessageBox.Show("The magic animations folder doesn't exist.", Text); return; }
 
             lastSource = dir; lastOut = outRoot; lastModels = txtModels.Text; lastLimits = limitsDir;
             lastPerModel = rbPerModel.Checked; lastRestZero = rbRestZero.Checked;

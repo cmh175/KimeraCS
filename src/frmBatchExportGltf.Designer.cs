@@ -363,7 +363,7 @@
             this.lblLimits.Name = "lblLimits";
             this.lblLimits.Size = new System.Drawing.Size(76, 15);
             this.lblLimits.TabIndex = 7;
-            this.lblLimits.Text = "Limit breaks:";
+            this.lblLimits.Text = "Magic anims:";
             //
             // txtLimits
             //
@@ -390,7 +390,7 @@
             this.lblLimitsHint.Name = "lblLimitsHint";
             this.lblLimitsHint.Size = new System.Drawing.Size(560, 15);
             this.lblLimitsHint.TabIndex = 10;
-            this.lblLimitsHint.Text = "Folder with the limit break .A00 files (extracted magic.lgp). Empty: the magic folder next to battle.";
+            this.lblLimitsHint.Text = "Limit break and summon animations (.A00, extracted magic.lgp). Empty: next to the models.";
             //
             // lvResults
             //

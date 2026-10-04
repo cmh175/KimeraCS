@@ -446,7 +446,7 @@ namespace KimeraCS
                         res.Warnings.Add("No limit breaks exported: " + skel.fileName.ToUpperInvariant() + " has " +
                                          string.Join(", ", expected.Select(Path.GetFileNameWithoutExtension)) +
                                          ", but none were found in " + opt.LimitsSearchFolder +
-                                         ". Point the limit breaks folder at an extracted magic.lgp (model-only mods don't include them).");
+                                         ". Point the limit breaks (magic animations) folder at an extracted magic.lgp (model-only mods don't include them).");
                 }
 
                 foreach (string lp in opt.LimitPackFiles)

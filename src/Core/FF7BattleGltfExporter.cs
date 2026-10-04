@@ -56,7 +56,7 @@ namespace KimeraCS
             public string LimitsSearchFolder = null;       // set when limit packs were looked up there and none
                                                            // were found: the report warns if the model has some
             public bool To60Fps = false;                   // 15 -> 60 fps conversion (battle animations are 15 fps)
-            public GltfRigExporter.LoopMode Loops = GltfRigExporter.LoopMode.All;
+            public GltfRigExporter.LoopMode Loops = GltfRigExporter.LoopMode.Auto;
         }
 
         public class Result : GltfRigExporter.Result { }
@@ -348,6 +348,12 @@ namespace KimeraCS
                             pack.WeaponAnimations[ai].frames.Count > 0)
                             wframes = pack.WeaponAnimations[ai].frames;
 
+                        // loop or one-shot for the 60 fps conversion (Loops = Auto)
+                        string why;
+                        bool loop = prefix != "ANIM" ? SixtyFpsLoops.Limit(prefix, ai, out why)
+                                  : isMagic ? SixtyFpsLoops.Magic(baseName, ai, out why)
+                                  : SixtyFpsLoops.Battle(baseName, ai, out why);
+
                         GltfRigExporter.Animation ga = new GltfRigExporter.Animation
                         {
                             Name = name,
@@ -356,6 +362,8 @@ namespace KimeraCS
                             R = new float[rig.Joints.Count][],
                             RootT = new float[nf * 3],
                             RootR = new float[nf * 4],
+                            Loop = loop,
+                            LoopWhy = why,
                         };
 
                         for (int bi = 0; bi < nb; bi++)

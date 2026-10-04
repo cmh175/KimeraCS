@@ -26,7 +26,8 @@ namespace KimeraCS
     //   --rest frame (default) takes the rest pose from --rest-anim (default: the first animation in
     //   --anims, frame 0). The root placement always comes from that frame.
     //   --60fps: field 30 -> 60 fps (2 keys per frame), battle/magic 15 -> 60 fps (4 keys per frame).
-    //   --loops all (default): every animation also blends back into its first frame (safe with the 60FPS mod).
+    //   --loops auto (default): loop or one-shot per animation as the official 60FPS mod (SixtyFpsLoops);
+    //   all: every animation also blends back into its first frame; none: no animation does.
     //
     // Battle (??AA) and magic/summon (.D) models:
     //   KimeraCS.exe --export-gltf-battle <model> --out <folder>

@@ -481,12 +481,12 @@
             this.cbLoops.Enabled = false;
             this.cbLoops.FormattingEnabled = true;
             this.cbLoops.Items.AddRange(new object[] {
-            "Auto-detect",
+            "Auto (60FPS mod)",
             "All loop",
             "No loops"});
             this.cbLoops.Location = new System.Drawing.Point(497, 137);
             this.cbLoops.Name = "cbLoops";
-            this.cbLoops.Size = new System.Drawing.Size(120, 23);
+            this.cbLoops.Size = new System.Drawing.Size(150, 23);
             this.cbLoops.TabIndex = 13;
             //
             // txtReport

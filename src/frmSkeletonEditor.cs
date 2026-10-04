@@ -58,7 +58,10 @@ namespace KimeraCS
     public partial class FrmSkeletonEditor : Form
     {
 
-        public string STR_APPNAME = $"{Assembly.GetExecutingAssembly().GetName().Name} v{Assembly.GetExecutingAssembly().GetName().Version}";
+        // Unversioned builds (0.0.0, the csproj default; CI stamps release versions) show no version number.
+        public string STR_APPNAME = Assembly.GetExecutingAssembly().GetName().Version is System.Version v && v > new System.Version(0, 0, 0, 0)
+                                    ? $"{Assembly.GetExecutingAssembly().GetName().Name} v{v}"
+                                    : Assembly.GetExecutingAssembly().GetName().Name;
 
         public static int modelWidth;
         public static int modelHeight;

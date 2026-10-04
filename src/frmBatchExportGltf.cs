@@ -29,7 +29,7 @@ namespace KimeraCS
         // Remembered while Kimera is open.
         private static string lastSource = "", lastOut = "", lastModels = "", lastLimits = "";
         private static bool lastPerModel = false, lastRestZero = false, lastDDS = true, lastBake = true, last60fps = false;
-        private static int lastLoops = 1;      // All loop: safe with the 60FPS mod's frame counts
+        private static int lastLoops = 0;      // Auto: each animation's loop choice from the 60FPS mod
 
         private const int TIMEOUT_MINUTES = 10;
 

@@ -23,7 +23,7 @@ namespace KimeraCS
         private static string lastExtra = "";
         private static int lastFps = 0;
         private static bool lastDDS = true, lastBake = true, lastRestZero = false, last60fps = false;
-        private static int lastLoops = 1;      // All loop: safe with the 60FPS mod's frame counts
+        private static int lastLoops = 0;      // Auto: each animation's loop choice from the 60FPS mod
 
         private readonly FieldSkeleton skeleton;
         private readonly FieldFrame? currentFrame;

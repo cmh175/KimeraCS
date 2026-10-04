@@ -57,6 +57,8 @@ namespace KimeraCS
             public float[][] R;                                       // per joint: Frames * 4 (x, y, z, w)
             public float[] RootT;                                     // Frames * 3
             public float[] RootR;                                     // Frames * 4
+            public bool Loop;                                         // LoopMode.Auto's choice (SixtyFpsLoops)
+            public string LoopWhy = "";                               // for the report
         }
 
         public class Rig
@@ -85,7 +87,7 @@ namespace KimeraCS
                                                       // battle models are lit by the game (viewers only, FFNx ignores it)
             public int FrameRateFactor = 1;           // > 1: keys per stored frame (2 = 30 -> 60 fps, 4 = 15 -> 60 fps),
                                                       // timestamps at FrameRateFactor x Fps (see MultiplyFrameRate)
-            public LoopMode Loops = LoopMode.All;     // whether the last frame also blends back into the first
+            public LoopMode Loops = LoopMode.Auto;    // whether the last frame also blends back into the first
         }
 
         public enum LoopMode { Auto, All, None }
@@ -789,12 +791,6 @@ namespace KimeraCS
         // ------------------------------------------------------------------------------------------
         // Frame rate conversion (30 -> 60 fps for field models, 15 -> 60 fps for battle models)
         // ------------------------------------------------------------------------------------------
-        private static double KeyAngle(float[] r, int f, int g)
-        {
-            double d = Math.Abs(r[f * 4] * r[g * 4] + r[f * 4 + 1] * r[g * 4 + 1] + r[f * 4 + 2] * r[g * 4 + 2] + r[f * 4 + 3] * r[g * 4 + 3]);
-            return 2 * Math.Acos(Math.Min(1.0, d)) * 180 / Math.PI;
-        }
-
         // Quaternions as double[4] (x, y, z, w) for the in-between math.
         private static double[] Q(float[] src, int f) =>
             src == null ? new double[] { 0, 0, 0, 1 } : new double[] { src[f * 4], src[f * 4 + 1], src[f * 4 + 2], src[f * 4 + 3] };
@@ -849,28 +845,13 @@ namespace KimeraCS
         private static double[] V3Lerp(double[] a, double[] b, double t) =>
             new double[] { a[0] * (1 - t) + b[0] * t, a[1] * (1 - t) + b[1] * t, a[2] * (1 - t) + b[2] * t };
 
-        // A looping animation ends one step before its first frame: the jump from the last frame back to
-        // the first is about as big as a normal step. One-shot animations jump much further (or repeat
-        // their first frame at the end, which already closes the loop).
-        private static bool LooksLikeLoop(Animation a, out double seam, out double maxStep)
-        {
-            seam = 0; maxStep = 0;
-            int nf = a.Frames;
-            foreach (float[] r in a.R)
-            {
-                if (r == null) continue;
-                for (int f = 0; f + 1 < nf; f++) maxStep = Math.Max(maxStep, KeyAngle(r, f, f + 1));
-                seam = Math.Max(seam, KeyAngle(r, nf - 1, 0));
-            }
-            return seam > 0.01 && seam <= Math.Max(1.5 * maxStep, 0.5);
-        }
-
         // Multiplies the frame rate: every original frame is kept and factor - 1 in-between keys are added
         // after each, and for loops also between the last frame and the first.
         // n frames -> factor * n keys (loop) or factor * (n - 1) + 1 keys (one-shot). The 60FPS mod uses the
-        // same counts (2n - 1 for field, 4n or 4n - 3 for battle). Loops = All is the safe default: FFNx takes
-        // the frame number from the game's .a file and never reaches keys past its frame count, while
-        // missing keys would freeze the last pose.
+        // same counts (2n - 1 for field, 4n or 4n - 3 for battle). Loops = Auto (default) takes each
+        // animation's loop choice from the 60FPS mod (Animation.Loop, see SixtyFpsLoops): FFNx shows the
+        // loop-closing keys when it stretches the keys over the game's frame count, so a one-shot exported as
+        // a loop blends back towards its first pose at the end.
         //
         // In-betweens blend the whole body like Kimera's own interpolation (the 60FPS mod was made with it):
         // each joint's rotation is accumulated down the hierarchy from the root, those whole-body rotations
@@ -885,9 +866,8 @@ namespace KimeraCS
             else if (mode == LoopMode.None) { loop = false; how = "no loop"; }
             else
             {
-                loop = LooksLikeLoop(a, out double seam, out double maxStep);
-                how = (loop ? "loop" : "no loop") + string.Format(CultureInfo.InvariantCulture,
-                      ", last->first {0:0.#} deg, largest step {1:0.#} deg", seam, maxStep);
+                loop = a.Loop;
+                how = (loop ? "loop" : "no loop") + (string.IsNullOrEmpty(a.LoopWhy) ? "" : ", " + a.LoopWhy);
             }
 
             int nj = a.R.Length;

@@ -50,7 +50,7 @@ namespace KimeraCS
             public string AnimationFolder = "";
             public List<string> AnimationNames = new List<string>();
             public bool To60Fps = false;              // 30 -> 60 fps conversion (see GltfRigExporter.MultiplyFrameRate)
-            public GltfRigExporter.LoopMode Loops = GltfRigExporter.LoopMode.All;
+            public GltfRigExporter.LoopMode Loops = GltfRigExporter.LoopMode.Auto;
         }
 
         public class Result : GltfRigExporter.Result { }
@@ -364,6 +364,7 @@ namespace KimeraCS
                         RootT = new float[nf * 3],
                         RootR = new float[nf * 4],
                     };
+                    ga.Loop = SixtyFpsLoops.Field(out ga.LoopWhy);
 
                     for (int bi = 0; bi < nb; bi++)
                     {

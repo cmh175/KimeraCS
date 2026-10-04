@@ -15,7 +15,8 @@ namespace KimeraCS
     //   field:  the mod converts every animation as a one-shot (2n - 1 frames)
     //   battle: the idle (ANIM_00) loops, except for a few models; some other animations loop too
     //   limit breaks: per pack
-    //   summons: everything loops, except Mog's second animation
+    //   summons: everything loops, except Mog's second animation and the Knights of the Round (KNIGHT01..13,
+    //   one animation each: one-shots in the mod's KOTRAnimation60FPS files, except knight11)
     // Animations the mod doesn't have (new models, new packs) follow the same rules.
     public static class SixtyFpsLoops
     {
@@ -79,7 +80,9 @@ namespace KimeraCS
         public static bool Magic(string model, int index, out string why)
         {
             string m = (model ?? "").ToUpperInvariant();
-            why = magicModels.Contains(m) ? "as the 60FPS mod" : "summon";
+            bool knight = System.Text.RegularExpressions.Regex.IsMatch(m, "^KNIGHT[0-9][0-9]$");
+            why = magicModels.Contains(m) || knight ? "as the 60FPS mod" : "summon";
+            if (knight) return m == "KNIGHT11";
             return !(magicOneShots.TryGetValue(m, out int[] l) && l.Contains(index));
         }
 

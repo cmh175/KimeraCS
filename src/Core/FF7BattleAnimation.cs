@@ -150,18 +150,20 @@ namespace KimeraCS
                     ProcessBattleUncompressedFrame(framesRawData, ref offsetBit, key, nBones, ref tmpbFrame);
                     frames.Add(tmpbFrame);
 
-                    for (fi = 1; fi < numFramesShort; fi++)
+                    //  Read up to the larger of the two frame counts: numFramesShort is usually the higher one, but
+                    //  some files store a much lower value there (Knights of the Round, knight01: 5 for 86 frames,
+                    //  numFrames = 86). Reading stops when the data runs out, as before.
+                    int maxFrames = Math.Max((int)numFramesShort, numFrames);
+                    for (fi = 1; fi < maxFrames; fi++)
                     {
                         //  If we ran out of data while reading the frame, it means this frame doesn't
                         //last_offsetBit = offsetBit;
                         tmpbFrame = new BattleFrame();
                         if (!ProcessBattleFrame(framesRawData, ref offsetBit, key, nBones, ref tmpbFrame, frames[fi - 1]))
-                        {
-                            numFramesShort = (ushort)fi;
                             break;
-                        }
                         frames.Add(tmpbFrame);
                     }
+                    numFramesShort = (ushort)frames.Count;
                 }
                 else
                 {

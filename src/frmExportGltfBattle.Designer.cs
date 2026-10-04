@@ -268,7 +268,7 @@
             this.lblFileNameHint.Name = "lblFileNameHint";
             this.lblFileNameHint.Size = new System.Drawing.Size(420, 15);
             this.lblFileNameHint.TabIndex = 5;
-            this.lblFileNameHint.Text = "FFNx has no battle gltf support yet; the name may change later.";
+            this.lblFileNameHint.Text = "FFNx looks the model up by its first piece (Cloud: RTAM).";
             //
             // lblPrefix
             //

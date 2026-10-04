@@ -6913,7 +6913,7 @@ namespace KimeraCS
                         return;
                     }
                     using (FrmExportGltf frmExport = new FrmExportGltf(fSkeleton, fAnimation, iCurrentFrameScroll,
-                                                                        strSkeletonFullPath, iFPS))
+                                                                        strSkeletonFullPath, iFPS, strGlobalPathFieldAnimationFolder))
                     {
                         frmExport.ShowDialog(this);
                     }
@@ -6930,9 +6930,15 @@ namespace KimeraCS
                                          opt => FF7StaticGltfExporter.ExportBattleLocation(location, opt));
                         return;
                     }
-                    using (FrmExportGltfBattle frmExport = new FrmExportGltfBattle(bSkeleton, modelType == K_MAGIC_SKELETON,
+                    // the animation pack loaded in Kimera (it may come from another folder than the model)
+                    bool magicModel = modelType == K_MAGIC_SKELETON;
+                    string packName = magicModel ? strGlobalMagicAnimationName : strGlobalBattleAnimationName;
+                    string packPath = string.IsNullOrEmpty(packName) || packName == "--" ? ""
+                                    : Path.IsPathRooted(packName) ? packName
+                                    : Path.Combine((magicModel ? strGlobalPathMagicAnimationFolder : strGlobalPathBattleAnimationFolder) ?? "", packName);
+                    using (FrmExportGltfBattle frmExport = new FrmExportGltfBattle(bSkeleton, magicModel,
                                                                                     bAnimationsPack, ianimIndex, iCurrentFrameScroll,
-                                                                                    ianimWeaponIndex, strSkeletonFullPath, iFPS))
+                                                                                    ianimWeaponIndex, strSkeletonFullPath, iFPS, packPath))
                     {
                         frmExport.ShowDialog(this);
                     }

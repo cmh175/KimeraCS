@@ -34,7 +34,8 @@ namespace KimeraCS
         private bool prefixEdited = false, settingPrefix = false, fillingList = false;
 
         public FrmExportGltfBattle(BattleSkeleton bSkeleton, bool bIsMagic, BattleAnimationsPack loadedPack,
-                                   int animIndex, int frameIndex, int weaponIndex, string strModelFullPath, int kimeraFps)
+                                   int animIndex, int frameIndex, int weaponIndex, string strModelFullPath, int kimeraFps,
+                                   string loadedPackPath = "")
         {
             InitializeComponent();
 
@@ -86,9 +87,19 @@ namespace KimeraCS
             }
             cbFileName.SelectedIndex = 0;
 
-            // animation pack (read from disk, like the export does)
+            // animation pack (read from disk, like the export does): the one loaded in Kimera, which may come from
+            // another folder, else the one next to the model
             string packName = isMagic ? baseName + ".A00" : baseName + "DA";
             packFile = Path.Combine(modelFolder, packName);
+            if (!string.IsNullOrEmpty(loadedPackPath) && File.Exists(loadedPackPath))
+            {
+                packFile = loadedPackPath;
+                packName = Path.GetFileName(loadedPackPath).ToUpperInvariant();
+                if (modelFolder == "" ||
+                    !string.Equals(Path.GetDirectoryName(Path.GetFullPath(loadedPackPath)), Path.GetFullPath(modelFolder),
+                                   StringComparison.OrdinalIgnoreCase))
+                    packName += " (loaded in Kimera from " + Path.GetDirectoryName(loadedPackPath) + ")";
+            }
             if (File.Exists(packFile))
             {
                 try
@@ -118,7 +129,7 @@ namespace KimeraCS
             }
             else
             {
-                lblPack.Text = "No animation pack (" + packName + ") next to the model.";
+                lblPack.Text = "No animation pack (" + packName + ") next to the model; open one in Kimera first.";
                 packFile = "";
             }
             UpdateSelectedCount();

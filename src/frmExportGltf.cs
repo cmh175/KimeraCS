@@ -37,7 +37,7 @@ namespace KimeraCS
         private bool fillingList = false;
 
         public FrmExportGltf(FieldSkeleton fSkeleton, FieldAnimation fAnimation, int frameIndex,
-                             string strModelFullPath, int kimeraFps)
+                             string strModelFullPath, int kimeraFps, string loadedAnimFolder = "")
         {
             InitializeComponent();
 
@@ -93,7 +93,11 @@ namespace KimeraCS
 
             if (animName != "" && animName != "DUMMY") checkedNames.Add(animName);
 
+            // animation folder: the model's, unless the animation loaded in Kimera came from another folder
             txtAnimFolder.Text = modelFolder;
+            if (animName != "" && animName != "DUMMY" && !string.IsNullOrEmpty(loadedAnimFolder) &&
+                !File.Exists(Path.Combine(modelFolder, animName + ".A")) && File.Exists(Path.Combine(loadedAnimFolder, animName + ".A")))
+                txtAnimFolder.Text = loadedAnimFolder;
             FillAnimationList();
 
             // remembered settings

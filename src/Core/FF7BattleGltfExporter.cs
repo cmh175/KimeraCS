@@ -20,8 +20,7 @@ namespace KimeraCS
     // animation pack (??DA) and limit break packs (*.A00), or a magic/summon model (.D + .A00),
     // -> glTF for FFNx.
     //
-    // FFNx has no battle gltf support yet (1.24.0); these conventions follow the field exporter and
-    // may change once FFNx reads battle models:
+    // Conventions (FFNx reads battle models this way since 2026-10-03; files go in mesh\battle):
     //   - joints "bone_00".."bone_NN" (battle bones have no names), parents like Kimera's drawing code
     //   - joint rest translation = (0, 0, +length of parent bone); rotations use Kimera's quaternion math
     //   - root node = Kimera's root placement turned 180 degrees about Z like the rest of the model:

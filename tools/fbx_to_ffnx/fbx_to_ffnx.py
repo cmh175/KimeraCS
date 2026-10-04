@@ -17,7 +17,14 @@ Runs inside Blender 4.5 in the background (no Blender window):
                game: for FFNx builds that apply the game's .a root motion (standing height, jumps) on top of
                the glTF joints: that root motion is taken back out of the new animation frame by frame (taken
                from the reference), so the model stands and moves where the original did.
-  --name       glTF file name = one of the FF7 model's .p names (FFNx looks the model up by it), e.g. AAAC
+  --anchor     original (default): each new animation starts and ends where the original does (taken from the
+               reference): its hips are lined up with the original's root at the first and the last frame, and
+               the difference is spread evenly over the frames in between (the path in between stays free).
+               Field walks and runs stay in place this way (the game moves the character itself; a walk that
+               also travels would drift ahead and snap back every loop), and a jump like the train jump starts
+               and lands where the original does. Height is matched as the change from standing height.
+               none: the animation is kept exactly as made.
+  --name      glTF file name = one of the FF7 model's .p names (FFNx looks the model up by it), e.g. AAAC
   --model      FBX with the mesh and skeleton (default: the --anim file of the reference's first animation,
                normally the idle; else the first --anim file)
   --anim       FBX=NAME: an FBX animation and the FF7 animation it replaces (4-letter name, e.g. ACFE).
@@ -45,7 +52,7 @@ from mathutils import Matrix, Quaternion, Vector
 # ---------------------------------------------------------------------------------------------- arguments
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 opt = {'anims': [], 'model': None, 'reference': None, 'name': None, 'out': None, 'height': None, 'max_texture': 1024,
-       'root_motion': 'gltf'}
+       'root_motion': 'gltf', 'anchor': 'original'}
 i = 0
 while i < len(argv):
     a = argv[i]
@@ -56,6 +63,9 @@ while i < len(argv):
     elif a == '--root-motion':
         opt['root_motion'] = argv[i + 1].lower(); i += 2
         if opt['root_motion'] not in ('gltf', 'game'): raise SystemExit('--root-motion is gltf or game')
+    elif a == '--anchor':
+        opt['anchor'] = argv[i + 1].lower(); i += 2
+        if opt['anchor'] not in ('original', 'none'): raise SystemExit('--anchor is original or none')
     elif a == '--folder':
         # Folder mode (fbx_to_ffnx.bat): <folder>\reference\<NAME>.gltf is the KimeraCS export of the FF7 model,
         # <folder>\character.fbx (or model.fbx) the mesh, every other .fbx an animation named after its file
@@ -157,6 +167,24 @@ def game_root(name, k):
     k = min(k, len(rt) - 1, len(rr) - 1)
     return F4 @ trs(rt[k], rr[k])     # the reference's root node = F4 @ game root
 
+def original_root(name, k):
+    """The original's root placement (FF7 space) at frame k of animation `name` (k = -1: last frame), or None."""
+    a = ref_anims.get(name[:4])
+    if not a or not a[0] or not a[1]:
+        return None
+    rt, rr, _ = a
+    n = min(len(rt), len(rr))
+    k = n - 1 if k < 0 else min(k, n - 1)
+    return F4 @ trs(rt[k], rr[k])
+
+def yaw(m):
+    """Heading of a rotation about FF7's vertical (Y) axis, in radians (0 = facing +Z)."""
+    f = m.to_3x3() @ Vector((0, 0, 1))
+    return math.atan2(f.x, f.z)
+
+def wrap(a):
+    return (a + math.pi) % (2 * math.pi) - math.pi
+
 def rigid_inverse(m):
     r = m.to_3x3().transposed()
     t = -(r @ m.to_translation())
@@ -218,9 +246,24 @@ scale = target_height / src_height if target_height else 1.0
 log('Size: %.3f in the FBX -> %.2f FF7 units (x%.3f)' % (src_height, src_height * scale, scale))
 
 rest_game = [to_game(arm.matrix_world @ arm.data.bones[n].matrix_local, scale) for n in joints]
+
+def pick_body():
+    """The hips joint: the topmost joint named pelvis / hips / hip, else the topmost joint well above the floor
+    (a skeleton's own root bone often sits on the floor and doesn't follow the body)."""
+    for word in ('pelvis', 'hips', 'hip'):
+        for i, n in enumerate(joints):
+            if word in n.lower().replace('thigh', ''): return i
+    floor = max(w.translation.y for w in rest_game)          # FF7 space: Y points down
+    for i, w in enumerate(rest_game):
+        if floor - w.translation.y > 0.3 * src_height * scale: return i
+    return 0
+body = pick_body()
+log('Hips joint: ' + joints[body])
 root_rest = F4 @ ref_root_rest if opt['root_motion'] == 'game' else Matrix.Identity(4)
 log('Root motion: ' + ('from the game (taken back out of the new animation)' if opt['root_motion'] == 'game'
                        else 'the new animation\'s own (glTF root motion)'))
+log('Start and end: ' + ('matched to the original (--anchor original)' if opt['anchor'] == 'original' and ref
+                         else 'kept as made'))
 
 def locals_from_world(world_game, groot):
     inv_root = rigid_inverse(groot)
@@ -452,6 +495,67 @@ if any(o.data.shape_keys for o in meshes): log('  shape keys (facial expressions
 log('Meshes: %d, %d vertices, %d triangles' % (len(meshes), total_v, total_t))
 gl['scenes'][0]['nodes'] = [root_node]
 
+# ---------------------------------------------------------------------------------------------- start and end
+def anchor(name, worlds):
+    """--anchor original: lines the new animation up with the original at its first and its last frame. The hips'
+    position and heading are compared with the original's root (both relative to standing), and the correction
+    (a turn about the vertical axis plus a move) is spread evenly from the first frame to the last. Changes
+    `worlds` (per frame: FF7-space joint matrices) in place; returns a line for the report."""
+    n = len(worlds)
+    rest_b = rest_game[body]
+    rest_inv = rest_b.to_3x3().transposed()
+    def place(w):
+        return w[body].translation.copy(), yaw(w[body].to_3x3() @ rest_inv)
+    p0, h0 = place(worlds[0]); p1, h1 = place(worlds[-1])
+    travel = math.hypot(p1.x - p0.x, p1.z - p0.z)
+    o0, o1 = original_root(name, 0), original_root(name, -1)
+    if opt['anchor'] == 'none' or o0 is None:
+        if travel > 0.1 * src_height * scale:
+            warnings.append('%s: kept as made; its hips travel %.1f units from the first frame to the last. If it is '
+                            'a walk or run, export it in place (the game moves the character itself).' % (name, travel))
+        return 'kept as made (hips travel %.1f units)' % travel if opt['anchor'] == 'none' else ''
+
+    # Offsets from standing: the original's root, the new hips (from their rest pose)
+    stand = F4 @ ref_root_rest                           # the original standing (rest) placement
+    stand_inv = stand.to_3x3().transposed()
+    o_off = [o.translation - stand.translation for o in (o0, o1)]
+    o_yaw = [yaw(o.to_3x3() @ stand_inv) for o in (o0, o1)]
+    n_off = [p0 - rest_b.translation, p1 - rest_b.translation]
+    # Start: a small offset is the pose itself (weight on one leg, hips twisted) and stays as made; a big one
+    # (the train jump starts 64 units away, turned around) is matched. End: the start correction plus whatever
+    # the new animation moves or turns differently from the original, so the travel always matches.
+    big = 0.15 * src_height * scale
+    c0 = o_off[0] - n_off[0]
+    if c0.length < big: c0 = Vector((0, 0, 0))
+    c1 = c0 + (o_off[1] - o_off[0]) - (n_off[1] - n_off[0])
+    turn0 = wrap(o_yaw[0] - h0)
+    if abs(turn0) < math.radians(30): turn0 = 0.0
+    turn1 = turn0 + wrap((o_yaw[1] - o_yaw[0]) - (h1 - h0))
+    # A loop's last frame sits one step before its first: hip sway and bob differ a little there without any real
+    # travel. Differences that small are left as made.
+    d = c1 - c0
+    if math.hypot(d.x, d.z) < 0.03 * src_height * scale and abs(d.y) < 0.03 * src_height * scale: c1 = c0.copy()
+    if abs(turn1 - turn0) < math.radians(5): turn1 = turn0
+    def move_for(turn, p, c):
+        q = Matrix.Rotation(turn, 4, 'Y') @ p             # the hips after the turn (about the vertical axis)
+        return Vector((p.x + c.x - q.x, c.y, p.z + c.z - q.z))
+    move0, move1 = move_for(turn0, p0, c0), move_for(turn1, p1, c1)
+    for k in range(n):
+        s = k / (n - 1) if n > 1 else 0.0
+        c = Matrix.Translation(move0.lerp(move1, s)) @ Matrix.Rotation(turn0 + (turn1 - turn0) * s, 4, 'Y')
+        worlds[k] = [c @ w for w in worlds[k]]
+
+    otravel = math.hypot(o1.translation.x - o0.translation.x, o1.translation.z - o0.translation.z)
+    dmove = math.hypot(c1.x - c0.x, c1.z - c0.z)
+    dturn = math.degrees(abs(turn1 - turn0))
+    if dmove > 0.25 * src_height * scale or dturn > 30:
+        warnings.append('%s: moves or turns differently from the original (hips travel %.1f units, the original %.1f; '
+                        '%.0f degrees of turn corrected). The difference was spread over the animation: check that it '
+                        'looks right, or make the animation follow the original more closely.' % (name, travel, otravel, dturn))
+    return ('start and end matched to the original: start moved %.1f units and turned %.0f deg, end moved %.1f units '
+            'and turned %.0f deg (hips travel %.1f units, the original %.1f)'
+            % (c0.length, math.degrees(turn0), c1.length, math.degrees(turn1), travel, otravel))
+
 # ---------------------------------------------------------------------------------------------- animations
 log('Animations (one key per frame, 30 fps timestamps):')
 for path, name in anims:
@@ -465,12 +569,17 @@ for path, name in anims:
     if missing: warnings.append('%s lacks bones %s; they keep their rest pose.' % (path, ', '.join(missing[:5])))
     keys_t = [[] for _ in joints]; keys_r = [[] for _ in joints]; root_t = []; root_r = []
     nframes = f1 - f0 + 1
+    worlds = []
     for k in range(nframes):
         sc.frame_set(f0 + k)
         world = []
         for i, n in enumerate(joints):
             pb = a.pose.bones.get(n)
             world.append(to_game(a.matrix_world @ pb.matrix, scale) if pb else rest_game[i])
+        worlds.append(world)
+    anchor_note = anchor(name, worlds)
+    for k in range(nframes):
+        world = worlds[k]
         groot = game_root(name, k)
         loc = locals_from_world(world, groot)
         for i, (t, q) in enumerate(loc):
@@ -503,6 +612,7 @@ for path, name in anims:
             warnings.append('%s: %d frames, but the game animation has %d (FFNx plays the game\'s frame count; '
                             'extra frames are never shown, missing ones hold the last pose).' % (name, nframes, ref_frames))
     log('  %s <- %s: %d frame(s)%s' % (name, os.path.basename(path), nframes, note))
+    if anchor_note: log('      ' + anchor_note)
 
 # ---------------------------------------------------------------------------------------------- write
 gl['buffers'] = [{'byteLength': len(gb.bin), 'uri': opt['name'] + '.bin'}]

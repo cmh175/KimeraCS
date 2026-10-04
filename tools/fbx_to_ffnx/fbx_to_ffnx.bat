@@ -13,6 +13,10 @@ rem Root motion: by default the new animations keep their own hip height and tra
 rem independence uses the glTF's root motion; FFNx 1.24.0 ignores root motion). For FFNx builds that apply the
 rem game's root motion instead, run from a command line: fbx_to_ffnx.bat <folder> --root-motion game
 rem
+rem Start and end: each animation starts and ends where the original does (walks and runs stay in place, a jump
+rem lands where the original lands); the path in between is free. To keep the animations exactly as made:
+rem fbx_to_ffnx.bat <folder> --anchor none
+rem
 rem Needs Blender 4.5 (set BLENDER below if it is installed somewhere else).
 
 set "BLENDER=C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
@@ -28,7 +32,7 @@ if "%~1"=="" (
 )
 
 "%BLENDER%" -b --factory-startup -P "%~dp0fbx_to_ffnx.py" -- --folder %* > "%TEMP%\fbx_to_ffnx.log" 2>&1
-findstr /b /c:"  " /c:"Reference" /c:"Model" /c:"Root motion" /c:"Skeleton" /c:"Size" /c:"Meshes" /c:"Animations" /c:"Warnings" /c:"Written" "%TEMP%\fbx_to_ffnx.log"
+findstr /b /c:"  " /c:"Reference" /c:"Model" /c:"Root motion" /c:"Start and end" /c:"Hips joint" /c:"Skeleton" /c:"Size" /c:"Meshes" /c:"Animations" /c:"Warnings" /c:"Written" "%TEMP%\fbx_to_ffnx.log"
 findstr /c:"FBX_TO_FFNX_DONE" "%TEMP%\fbx_to_ffnx.log" >nul
 if errorlevel 1 (
     echo.

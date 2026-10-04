@@ -14,7 +14,11 @@ namespace KimeraCS
     // one-shot. The lists below are read from the mod's own files (devtools/loop_check.py compares).
     //   field:  the mod converts every animation as a one-shot (2n - 1 frames)
     //   battle: the idle (ANIM_00) loops, except for a few models; some other animations loop too
-    //   limit breaks: per pack
+    //   limit breaks: per part, and where its last frames glide: most parts glide into the next part's first
+    //   frame (the game plays them one after the other: Braver 00 -> 01 -> 02 -> 03), some hold their last
+    //   frame (Tifa's LIMFAST parts end in her idle stance), one glides into another part, and the parts that
+    //   repeat a pose loop back to their own start
+    //   (devtools/limit_seams.py measures it in the mod's files)
     //   summons: everything loops, except Mog's second animation and the Knights of the Round (KNIGHT01..13,
     //   one animation each: one-shots in the mod's KOTRAnimation60FPS files, except knight11)
     // Animations the mod doesn't have (new models, new packs) follow the same rules.
@@ -35,11 +39,15 @@ namespace KimeraCS
             "rt:1,7,16 ru:1,7,16,27 rv:1,7,16 rw:1,2,7,16 rx:1,7 ry:1,2,7,16,27 rz:1,7 sa:7 sb:1,2,7 sc:1,2,7 " +
             "sd:1,2,7 se:1,2,7 sf:1,7 sg:1,7,16 sh:1,7,16 si:1,7,16 sj:2 sk:2 sm:2");
 
-        // limit break packs: the looping parts (packs the mod has with none listed: all one-shots)
-        private static readonly Dictionary<string, int[]> limitLoops = Parse(
-            "BLAVER:0,1,2 KYOU:0,1,2 LIMCL2:0 LIMCL4:0,1 LIMCL6:0,1 LIMFAST:0,1,2,4,5,6 LIMEA2:0,1 LIMRD5:0 " +
-            "LIMRD6:0,1 LIMRD7:0 LIMSLED:0,1,2,3 LIMYF1:0,1,2 LIMYF6:0,1,3,4,5,6 LIMYF7:0,1,2,3,4,5,6 " +
-            "LIMCD3:0,1,3 LIMCD5:0,1 LIMBR6:0,1,2,3 LIMBR7:0,1");
+        // limit break packs: the parts with closing keys and where they glide (packs the mod has with none
+        // listed: all one-shots). "2" = back to its own start (a loop), "2>" = into the next part,
+        // "2h" = holds its last frame, "3>1" = into part 1
+        private static readonly Dictionary<string, string[]> limitTails =
+            ("BLAVER:0>,1>,2> KYOU:0>,1h,2> LIMCL2:0> LIMCL4:0h,1> LIMCL6:0>,1> LIMFAST:0h,1h,2h,4h,5>,6h " +
+             "LIMEA2:0>,1h LIMRD5:0> LIMRD6:0>,1> LIMRD7:0 LIMSLED:0>,1>,2>,3> LIMYF1:0>,1>,2> " +
+             "LIMYF6:0>,1>,3h,4>,5,6 LIMYF7:0>,1>,2>,3h,4>,5,6 LIMCD3:0>,1>,3>1 LIMCD5:0>,1> LIMBR6:0>,1>,2>,3h " +
+             "LIMBR7:0>,1>")
+            .Split(' ').Select(e => e.Split(':')).ToDictionary(e => e[0], e => e[1].Split(','));
         private static readonly HashSet<string> limitPacks = new HashSet<string>((
             "BLAVER DICE HVSHOT IYASH KODO KYOU LIMBR2 LIMBR3 LIMBR4 LIMBR5 LIMBR6 LIMBR7 LIMCD1 LIMCD2 LIMCD3 " +
             "LIMCD4 LIMCD5 LIMCD6 LIMCD7 LIMCL2 LIMCL3 LIMCL4 LIMCL6 LIMCL7 LIMEA2 LIMEA3 LIMEA4 LIMEA5 LIMEA6 " +
@@ -68,12 +76,25 @@ namespace KimeraCS
             return loop;
         }
 
-        // pack: limit break pack name without extension (e.g. "BLAVER")
-        public static bool Limit(string pack, int index, out string why)
+        public const string Hold = "(hold)";
+
+        // pack: limit break pack name without extension (e.g. "BLAVER"). into: the animation whose first frame
+        // the closing keys glide into ("BLAVER_01"), Hold for the part's last frame, or null for its own start.
+        public static bool Limit(string pack, int index, out string why, out string into)
         {
             string p = (pack ?? "").ToUpperInvariant();
             why = limitPacks.Contains(p) ? "as the 60FPS mod" : "limit break";
-            return limitLoops.TryGetValue(p, out int[] l) && l.Contains(index);
+            into = null;
+            if (!limitTails.TryGetValue(p, out string[] parts)) return false;
+            string e = parts.FirstOrDefault(x => x.TrimEnd('h').Split('>')[0] == index.ToString());
+            if (e == null) return false;
+            if (e.EndsWith("h")) into = Hold;
+            else if (e.Contains('>'))
+            {
+                string t = e.Split('>')[1];
+                into = t == "" ? p + "_" + (index + 1).ToString("00") : t == "A" ? "ANIM_00" : p + "_" + int.Parse(t).ToString("00");
+            }
+            return true;
         }
 
         // model: summon / magic model name without extension (e.g. "BAHAMDAT")

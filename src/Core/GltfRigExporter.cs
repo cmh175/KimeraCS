@@ -59,6 +59,10 @@ namespace KimeraCS
             public float[] RootR;                                     // Frames * 4
             public bool Loop;                                         // LoopMode.Auto's choice (SixtyFpsLoops)
             public string LoopWhy = "";                               // for the report
+            public Animation LoopInto;                                // the loop-closing keys blend into this
+                                                                      // animation's first frame (null: its own;
+                                                                      // limit break parts glide into the next part)
+            public bool LoopHold;                                     // the closing keys hold the last frame instead
         }
 
         public class Rig
@@ -924,8 +928,13 @@ namespace KimeraCS
                     continue;
                 }
 
-                double[] rootA = Q(a.RootR, f), rootB = Q(a.RootR, g), rootI = QSlerp(rootA, rootB, t);
-                double[] rootTA = V3(a.RootT, f), rootTB = V3(a.RootT, g), rootTI = V3Lerp(rootTA, rootTB, t);
+                // after the last frame: blend into the first frame of LoopInto (the next limit break part ...)
+                Animation b = a;
+                if (f == nf - 1 && a.LoopHold) g = f;
+                else if (f == nf - 1 && a.LoopInto != null && a.LoopInto.Frames > 0) { b = a.LoopInto; g = 0; }
+
+                double[] rootA = Q(a.RootR, f), rootB = Q(b.RootR, g), rootI = QSlerp(rootA, rootB, t);
+                double[] rootTA = V3(a.RootT, f), rootTB = V3(b.RootT, g), rootTI = V3Lerp(rootTA, rootTB, t);
                 for (int c = 0; c < 3; c++) o.RootT[k * 3 + c] = (float)rootTI[c];
                 PutKey(o.RootR, k, rootI);
 
@@ -933,8 +942,12 @@ namespace KimeraCS
                 {
                     int p = ParentOf(j);
                     double[] pa = p < 0 ? rootA : accA[p], pb = p < 0 ? rootB : accB[p], pi = p < 0 ? rootI : accI[p];
+                    // the frame blended into (a joint the other animation lacks holds its last pose)
+                    bool fromB = j < b.R.Length && b.R[j] != null && j < b.T.Length && b.T[j] != null;
+                    float[] rB = fromB ? b.R[j] : a.R[j], tB = fromB ? b.T[j] : a.T[j];
+                    int gB = fromB || b == a ? g : f;
                     accA[j] = QMul(pa, Q(a.R[j], f));
-                    accB[j] = QMul(pb, Q(a.R[j], g));
+                    accB[j] = QMul(pb, Q(rB, gB));
                     accI[j] = QSlerp(accA[j], accB[j], t);
                     if (a.R[j] == null) continue;
 
@@ -946,13 +959,13 @@ namespace KimeraCS
                     {
                         // placement under the root node: blend where it is in the scene, then make it
                         // relative to the blended root again
-                        double[] wA = QRotate(rootA, V3(a.T[j], f)), wB = QRotate(rootB, V3(a.T[j], g));
+                        double[] wA = QRotate(rootA, V3(a.T[j], f)), wB = QRotate(rootB, V3(tB, gB));
                         for (int c = 0; c < 3; c++) { wA[c] += rootTA[c]; wB[c] += rootTB[c]; }
                         double[] wI = V3Lerp(wA, wB, t);
                         for (int c = 0; c < 3; c++) wI[c] -= rootTI[c];
                         tI = QRotate(pInv, wI);
                     }
-                    else tI = V3Lerp(V3(a.T[j], f), V3(a.T[j], g), t);
+                    else tI = V3Lerp(V3(a.T[j], f), V3(tB, gB), t);
                     for (int c = 0; c < 3; c++) o.T[j][k * 3 + c] = (float)tI[c];
                 }
             }

@@ -310,6 +310,7 @@ namespace KimeraCS
                     ? "Animations (converted 15 -> 60 fps: every stored frame kept, three in-between keys added after each):"
                     : "Animations (" + opt.Fps.ToString(CultureInfo.InvariantCulture) + " fps timestamps, one key per stored frame):");
 
+                Dictionary<string, string> loopInto = new Dictionary<string, string>();   // limit part -> glides into
                 void AddPack(BattleAnimationsPack pack, string prefix, List<int> indexes)
                 {
                     for (int ai = 0; ai < pack.SkeletonAnimations.Count; ai++)
@@ -348,10 +349,11 @@ namespace KimeraCS
                             wframes = pack.WeaponAnimations[ai].frames;
 
                         // loop or one-shot for the 60 fps conversion (Loops = Auto)
-                        string why;
-                        bool loop = prefix != "ANIM" ? SixtyFpsLoops.Limit(prefix, ai, out why)
+                        string why, into = null;
+                        bool loop = prefix != "ANIM" ? SixtyFpsLoops.Limit(prefix, ai, out why, out into)
                                   : isMagic ? SixtyFpsLoops.Magic(baseName, ai, out why)
                                   : SixtyFpsLoops.Battle(baseName, ai, out why);
+                        if (into != null) loopInto[name] = into;
 
                         GltfRigExporter.Animation ga = new GltfRigExporter.Animation
                         {
@@ -458,6 +460,15 @@ namespace KimeraCS
                     }
                     BattleAnimationsPack pack = ReadPack(lp, nb, 8, 8, true);
                     AddPack(pack, Path.GetFileNameWithoutExtension(lp).ToUpperInvariant(), null);
+                }
+
+                // limit break parts glide into the next part (or the idle ...) instead of looping back
+                foreach (GltfRigExporter.Animation ga in rig.Animations)
+                {
+                    if (!loopInto.TryGetValue(ga.Name, out string target)) continue;
+                    if (target == SixtyFpsLoops.Hold) { ga.LoopHold = true; ga.LoopWhy += ", holds its last frame"; continue; }
+                    ga.LoopInto = rig.Animations.FirstOrDefault(x => x.Name == target);
+                    ga.LoopWhy += ga.LoopInto != null ? ", into " + target : " (" + target + " not exported: back to its own start)";
                 }
 
                 // ---------------------------------------------------------------- write

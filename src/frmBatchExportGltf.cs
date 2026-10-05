@@ -20,6 +20,9 @@ namespace KimeraCS
     //   battle (??AA): all animations, all weapons, limit breaks; battle scenes: static export
     //   magic / summon (.D): all animations;  .RSD / .TMD / .P: static export
     //
+    // Model-only mods have no animation files, so two folders can point at the vanilla ones: the models'
+    // own animations (.a, ??DA, summon .A00) and the magic folder (limit breaks, summon .A00).
+    //
     // Output is sorted into type folders like FFNx's mesh folder: field\, world\, battle\, magic\,
     // minigame\ (each with its own textures\), reports in _reports\. FFNx reads mesh\field\ and, in
     // newer builds, mesh\battle\; the other names follow the game's .lgp files.
@@ -27,7 +30,7 @@ namespace KimeraCS
     public partial class FrmBatchExportGltf : Form
     {
         // Remembered while Kimera is open.
-        private static string lastSource = "", lastOut = "", lastModels = "", lastLimits = "";
+        private static string lastSource = "", lastOut = "", lastModels = "", lastAnims = "", lastLimits = "";
         private static bool lastPerModel = false, lastRestZero = false, lastDDS = true, lastBake = true, last60fps = false;
         private static int lastLoops = 0;      // Auto: each animation's loop choice from the 60FPS mod
 
@@ -58,6 +61,7 @@ namespace KimeraCS
             txtSource.Text = lastSource != "" ? lastSource : (defaultSourceFolder ?? "");
             txtOut.Text = lastOut;
             txtModels.Text = lastModels;
+            txtAnims.Text = lastAnims;
             txtLimits.Text = lastLimits;
             rbPerModel.Checked = lastPerModel;
             rbRestZero.Checked = lastRestZero;
@@ -211,6 +215,14 @@ namespace KimeraCS
             if (f != null) txtOut.Text = f;
         }
 
+        // The models' own animations: .a files (char.lgp, world_us.lgp ...), ??DA packs (battle.lgp) and summon
+        // .A00 files (magic.lgp). Empty = next to each model.
+        private void BtnBrowseAnims_Click(object sender, EventArgs e)
+        {
+            string f = PickFolder(txtAnims.Text, "Folder with the models' animation files (an extracted .lgp: char, world_us, battle or magic)");
+            if (f != null) txtAnims.Text = f;
+        }
+
         // Limit break packs and summon animations (.A00) live in magic.lgp. Model-only mods (e.g. Ninostyle) don't
         // include them, so the vanilla magic folder can be chosen here; empty = the magic folder next to the battle
         // folder (limit breaks) / the summon model's own folder.
@@ -258,10 +270,12 @@ namespace KimeraCS
             {
                 case Kind.Field:
                     a.AddRange(new[] { GltfCommandLine.SWITCH, j.File, "--out", outDir, "--name", "p", "--anims", "all" });
+                    if (txtAnims.Text.Trim() != "") a.AddRange(new[] { "--anim-dir", txtAnims.Text.Trim() });
                     break;
                 case Kind.Battle:
                 case Kind.Magic:
                     a.AddRange(new[] { GltfCommandLine.SWITCH_BATTLE, j.File, "--out", outDir });
+                    if (txtAnims.Text.Trim() != "") a.AddRange(new[] { "--anim-dir", txtAnims.Text.Trim() });
                     // limit breaks for battle characters; summon animations for summon models without any
                     if (txtLimits.Text.Trim() != "") a.AddRange(new[] { "--limits-dir", txtLimits.Text.Trim() });
                     break;
@@ -322,10 +336,11 @@ namespace KimeraCS
             if (outRoot == "") { MessageBox.Show("Choose an output folder.", Text); return; }
             if (entries.Count == 0) { MessageBox.Show("Add at least one model to the list.", Text); return; }
 
-            string limitsDir = txtLimits.Text.Trim();
+            string animsDir = txtAnims.Text.Trim(), limitsDir = txtLimits.Text.Trim();
+            if (animsDir != "" && !Directory.Exists(animsDir)) { MessageBox.Show("The animations folder doesn't exist.", Text); return; }
             if (limitsDir != "" && !Directory.Exists(limitsDir)) { MessageBox.Show("The magic animations folder doesn't exist.", Text); return; }
 
-            lastSource = dir; lastOut = outRoot; lastModels = txtModels.Text; lastLimits = limitsDir;
+            lastSource = dir; lastOut = outRoot; lastModels = txtModels.Text; lastAnims = animsDir; lastLimits = limitsDir;
             lastPerModel = rbPerModel.Checked; lastRestZero = rbRestZero.Checked;
             lastDDS = chkDDS.Checked; lastBake = chkBake.Checked; last60fps = chk60fps.Checked;
             lastLoops = Math.Max(0, cbLoops.SelectedIndex);

@@ -8,6 +8,7 @@ namespace KimeraCS
 {
 
     using static FF7Skeleton;
+    using static FF7FieldSkeleton;
     using static FF7FieldAnimation;
     using static FF7BattleAnimation;
     using static FF7BattleAnimationsPack;
@@ -23,6 +24,8 @@ namespace KimeraCS
     //                [--anim-dir <folder>] [--rest zero|frame] [--rest-anim ACFE[:frame]]
     //                [--60fps] [--loops all|auto|none] [--report <file>]
     //   --anims all: every compatible animation (Ifalna database order, so the default idle is first).
+    //   --anim-dir: folder with the .a files (default: the model's folder); with --anims all, the model's
+    //   folder is used when none of its animations are in --anim-dir.
     //   --name p: name the file after the model's first .p file (what FFNx looks for).
     //   --rest frame (default) takes the rest pose from --rest-anim (default: the first animation in
     //   --anims, frame 0). The root placement always comes from that frame.
@@ -34,10 +37,13 @@ namespace KimeraCS
     // Battle (??AA) and magic/summon (.D) models:
     //   KimeraCS.exe --export-gltf-battle <model> --out <folder>
     //                [--name RTAM] [--fps 15] [--prefix cloud_b] [--no-dds] [--no-bake]
-    //                [--anims all|none|0,1,5] [--limits auto|none|LIMCL2,BLAVER] [--limits-dir <folder>]
+    //                [--anims all|none|0,1,5] [--anim-dir <folder>]
+    //                [--limits auto|none|LIMCL2,BLAVER] [--limits-dir <folder>]
     //                [--weapons all|current|none] [--weapon 0] [--rest zero|frame] [--rest-anim 0[:frame]]
     //                [--60fps] [--loops all|auto|none]
     //   --fps: timestamps only (default 15, the frame rate of battle animations).
+    //   --anim-dir: folder with the model's animation pack (??DA, or <name>.A00 for magic models), e.g. an
+    //   extracted battle.lgp for model-only mods; the model's folder is used when the pack isn't there.
     //   --limits-dir: folder with the limit break .A00 files (an extracted magic.lgp); summon models also take
     //   their animations (<name>.A00) from it when there is none next to the model (model-only mods).
     //
@@ -206,7 +212,9 @@ namespace KimeraCS
                 reportPath = reportArg;
                 if (!File.Exists(hrc)) throw new ArgumentException("HRC file not found: " + hrc);
                 if (opt.OutputFolder == "") throw new ArgumentException("--out is required");
-                if (opt.AnimationFolder == "") opt.AnimationFolder = Path.GetDirectoryName(Path.GetFullPath(hrc));
+                string modelFolder = Path.GetDirectoryName(Path.GetFullPath(hrc));
+                if (opt.AnimationFolder == "") opt.AnimationFolder = modelFolder;
+                else if (!Directory.Exists(opt.AnimationFolder)) throw new ArgumentException("Animation folder not found: " + opt.AnimationFolder);
 
                 Directory.CreateDirectory(opt.OutputFolder);
 
@@ -214,8 +222,13 @@ namespace KimeraCS
                 // check (same as File > Don't check duplicated polys/verts).
                 FileTools.bDontCheckRepairPolys = true;
 
-                if (LoadSkeleton(hrc, true) != 1 || modelType != K_HRC_SKELETON)
+                // The skeleton is loaded on its own: LoadSkeleton also looks for an animation next to the model and
+                // shows a message box when there is none (model-only mods), which would stop a batch export.
+                if (GetSkeletonType(hrc) != K_HRC_SKELETON)
                     throw new InvalidOperationException("Could not load " + hrc + " as a field model.");
+                modelType = K_HRC_SKELETON;
+                fSkeleton = new FieldSkeleton(hrc, true);
+                strSkeletonFullPath = hrc;
 
                 // default (and --name p): the model's first .p file (FFNx loads mesh\field\<p name>.gltf)
                 if (string.IsNullOrWhiteSpace(opt.FileName) || string.Equals(opt.FileName, "p", StringComparison.OrdinalIgnoreCase))
@@ -225,7 +238,16 @@ namespace KimeraCS
                 // --anims all: every compatible animation (Ifalna order, so the default idle comes first)
                 string animSource = null;
                 if (animsArg != null && animsArg.Trim().ToLowerInvariant() == "all")
+                {
                     opt.AnimationNames = FF7FieldGltfExporter.CompatibleAnimations(hrc, opt.AnimationFolder, fSkeleton.bones.Count, out animSource);
+                    // none of them in --anim-dir (e.g. a model that isn't in that .lgp): the model's own folder
+                    if (opt.AnimationNames.Count == 0 &&
+                        !string.Equals(Path.GetFullPath(opt.AnimationFolder).TrimEnd('\\'), modelFolder.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                    {
+                        opt.AnimationFolder = modelFolder;
+                        opt.AnimationNames = FF7FieldGltfExporter.CompatibleAnimations(hrc, modelFolder, fSkeleton.bones.Count, out animSource);
+                    }
+                }
                 else if (animsArg != null)
                     opt.AnimationNames = animsArg.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
 
@@ -240,9 +262,15 @@ namespace KimeraCS
                     FieldAnimation anim = FF7FieldGltfExporter.ReadAnimation(Path.Combine(opt.AnimationFolder, an + ".A"));
                     opt.RestFrame = anim.frames[Math.Min(frame, anim.frames.Count - 1)];
                 }
-                else if (fAnimation.frames != null && fAnimation.frames.Count > 0)
+                else
                 {
-                    opt.RestFrame = fAnimation.frames[0];
+                    // no animations: the pose Kimera opens the model in (the first fitting .a next to it, or
+                    // Kimera's default pose; an empty name skips Kimera's "no animation" message)
+                    string first = "";
+                    SearchFirstCompatibleFieldAnimationFileName(fSkeleton, modelFolder, ref first);
+                    bool found = first != "DUMMY.A";
+                    FieldAnimation pose = new FieldAnimation(fSkeleton, found ? Path.Combine(modelFolder, first) : "", found);
+                    if (pose.frames != null && pose.frames.Count > 0) opt.RestFrame = pose.frames[0];
                 }
 
                 FF7FieldGltfExporter.Result res = FF7FieldGltfExporter.Export(fSkeleton, opt);
@@ -264,7 +292,7 @@ namespace KimeraCS
             {
                 string model = args.Length > 1 ? args[1] : "";
                 FF7BattleGltfExporter.Options opt = new FF7BattleGltfExporter.Options();
-                string anims = "all", limits = "auto", limitsDir = null, restAnim = "0";
+                string anims = "all", limits = "auto", limitsDir = null, animDir = null, restAnim = "0";
 
                 for (int i = 2; i < args.Length; i++)
                 {
@@ -282,6 +310,7 @@ namespace KimeraCS
                         case "--anims": anims = Next(); break;
                         case "--limits": limits = Next(); break;
                         case "--limits-dir": limitsDir = Next(); break;
+                        case "--anim-dir": animDir = Next(); break;
                         case "--weapon": opt.CurrentWeapon = int.Parse(Next(), CultureInfo.InvariantCulture); break;
                         case "--weapons":
                             string w = Next().ToLowerInvariant();
@@ -306,6 +335,7 @@ namespace KimeraCS
                 if (opt.OutputFolder == "") throw new ArgumentException("--out is required");
 
                 string folder = Path.GetDirectoryName(Path.GetFullPath(model));
+                if (animDir != null && !Directory.Exists(animDir)) throw new ArgumentException("Animation folder not found: " + animDir);
 
                 Directory.CreateDirectory(opt.OutputFolder);
                 bool namedReport = reportPath != null;
@@ -327,18 +357,20 @@ namespace KimeraCS
                 if (string.IsNullOrWhiteSpace(opt.FileName)) opt.FileName = FF7BattleGltfExporter.FirstPieceName(bSkeleton, isMagic);
                 if (!namedReport) reportPath = Path.Combine(opt.OutputFolder, opt.FileName + "_export_report.txt");
 
-                // main animation pack (the one Kimera loads with the model)
+                // main animation pack (??DA, or <name>.A00 for magic models): from --anim-dir when it has it,
+                // otherwise next to the model; summon models from model-only mods also look in --limits-dir,
+                // since their animations are in the (vanilla) magic folder with the limit breaks
                 string packName = isMagic ? Path.GetFileNameWithoutExtension(model).ToUpperInvariant() + ".A00"
                                           : Path.GetFileName(model).Substring(0, 2).ToUpperInvariant() + "DA";
-                string packFile = Path.Combine(folder, packName);
-                // summon models from model-only mods: their animations are in the (vanilla) magic folder, the
-                // same folder as the limit breaks (--limits-dir)
+                string ownPack = Path.Combine(folder, packName);
+                string packFile = new[] { animDir, folder, isMagic ? limitsDir : null }
+                                  .Where(d => d != null && File.Exists(Path.Combine(d, packName)))
+                                  .Select(d => Path.Combine(d, packName)).FirstOrDefault() ?? ownPack;
+                // the rest frame comes from the pack that is exported (Kimera only loaded the one next to the model)
                 BattleAnimationsPack restPack = bAnimationsPack;
-                if (isMagic && !File.Exists(packFile) && limitsDir != null && File.Exists(Path.Combine(limitsDir, packName)))
-                {
-                    packFile = Path.Combine(limitsDir, packName);
-                    restPack = FF7BattleGltfExporter.ReadPack(packFile, bSkeleton.nBones, bSkeleton.nsSkeletonAnims, 0, false);
-                }
+                if (File.Exists(packFile) && !string.Equals(Path.GetFullPath(packFile), Path.GetFullPath(ownPack), StringComparison.OrdinalIgnoreCase))
+                    restPack = FF7BattleGltfExporter.ReadPack(packFile, bSkeleton.nBones, bSkeleton.nsSkeletonAnims,
+                                                              isMagic ? 0 : bSkeleton.nsWeaponsAnims, false);
                 bool packMissing = anims.ToLowerInvariant() != "none" && !File.Exists(packFile);
                 if (anims.ToLowerInvariant() != "none" && File.Exists(packFile))
                 {
@@ -382,9 +414,11 @@ namespace KimeraCS
 
                 FF7BattleGltfExporter.Result res = FF7BattleGltfExporter.Export(bSkeleton, isMagic, opt);
                 if (packMissing)
-                    res.Warnings.Add("No animations exported: " + packName + " is not next to the model" +
+                    res.Warnings.Add("The model's own animations were not exported: " + packName + " is not next to the model" +
+                                     (animDir != null ? ", in " + animDir : "") +
                                      (isMagic && limitsDir != null ? " or in " + limitsDir : "") +
-                                     (isMagic ? ". Summon animations are in magic.lgp: point the magic animations folder (batch export) at an extracted magic.lgp." : "."));
+                                     (isMagic ? ". Summon animations are in magic.lgp: point the animations or magic animations folder (batch export) at an extracted magic.lgp."
+                                              : ". Battle animations are in battle.lgp: point the animations folder (batch export) at an extracted battle.lgp."));
                 WriteReport(reportPath, GltfRigExporter.FormatReport(res));
                 return res.Success ? 0 : 1;
             }

@@ -46,6 +46,10 @@
             this.lblOut = new System.Windows.Forms.Label();
             this.gbOptions = new System.Windows.Forms.GroupBox();
             this.cbLoops = new System.Windows.Forms.ComboBox();
+            this.lblAnims = new System.Windows.Forms.Label();
+            this.txtAnims = new System.Windows.Forms.TextBox();
+            this.btnBrowseAnims = new System.Windows.Forms.Button();
+            this.lblAnimsHint = new System.Windows.Forms.Label();
             this.lblLimits = new System.Windows.Forms.Label();
             this.txtLimits = new System.Windows.Forms.TextBox();
             this.btnBrowseLimits = new System.Windows.Forms.Button();
@@ -244,6 +248,10 @@
             this.gbOptions.Controls.Add(this.btnBrowseLimits);
             this.gbOptions.Controls.Add(this.txtLimits);
             this.gbOptions.Controls.Add(this.lblLimits);
+            this.gbOptions.Controls.Add(this.lblAnimsHint);
+            this.gbOptions.Controls.Add(this.btnBrowseAnims);
+            this.gbOptions.Controls.Add(this.txtAnims);
+            this.gbOptions.Controls.Add(this.lblAnims);
             this.gbOptions.Controls.Add(this.cbLoops);
             this.gbOptions.Controls.Add(this.lblLoops);
             this.gbOptions.Controls.Add(this.chk60fps);
@@ -253,7 +261,7 @@
             this.gbOptions.Controls.Add(this.lblRest);
             this.gbOptions.Location = new System.Drawing.Point(12, 322);
             this.gbOptions.Name = "gbOptions";
-            this.gbOptions.Size = new System.Drawing.Size(736, 162);
+            this.gbOptions.Size = new System.Drawing.Size(736, 216);
             this.gbOptions.TabIndex = 3;
             this.gbOptions.TabStop = false;
             this.gbOptions.Text = "Options (all compatible animations; battle models with all weapons and limit breaks)";
@@ -356,28 +364,64 @@
             this.cbLoops.Size = new System.Drawing.Size(150, 23);
             this.cbLoops.TabIndex = 6;
             //
+            // lblAnims
+            //
+            this.lblAnims.AutoSize = true;
+            this.lblAnims.Location = new System.Drawing.Point(10, 113);
+            this.lblAnims.Name = "lblAnims";
+            this.lblAnims.Size = new System.Drawing.Size(70, 15);
+            this.lblAnims.TabIndex = 7;
+            this.lblAnims.Text = "Animations:";
+            //
+            // txtAnims
+            //
+            this.txtAnims.Location = new System.Drawing.Point(120, 110);
+            this.txtAnims.Name = "txtAnims";
+            this.txtAnims.Size = new System.Drawing.Size(525, 23);
+            this.txtAnims.TabIndex = 8;
+            //
+            // btnBrowseAnims
+            //
+            this.btnBrowseAnims.Location = new System.Drawing.Point(651, 109);
+            this.btnBrowseAnims.Name = "btnBrowseAnims";
+            this.btnBrowseAnims.Size = new System.Drawing.Size(75, 25);
+            this.btnBrowseAnims.TabIndex = 9;
+            this.btnBrowseAnims.Text = "Browse...";
+            this.btnBrowseAnims.UseVisualStyleBackColor = true;
+            this.btnBrowseAnims.Click += new System.EventHandler(this.BtnBrowseAnims_Click);
+            //
+            // lblAnimsHint
+            //
+            this.lblAnimsHint.AutoSize = true;
+            this.lblAnimsHint.ForeColor = System.Drawing.SystemColors.GrayText;
+            this.lblAnimsHint.Location = new System.Drawing.Point(120, 137);
+            this.lblAnimsHint.Name = "lblAnimsHint";
+            this.lblAnimsHint.Size = new System.Drawing.Size(560, 15);
+            this.lblAnimsHint.TabIndex = 10;
+            this.lblAnimsHint.Text = "Own animations: .a (char, world_us), ??DA (battle), .A00 (summons). Empty: next to the models.";
+            //
             // lblLimits
             //
             this.lblLimits.AutoSize = true;
-            this.lblLimits.Location = new System.Drawing.Point(10, 113);
+            this.lblLimits.Location = new System.Drawing.Point(10, 167);
             this.lblLimits.Name = "lblLimits";
             this.lblLimits.Size = new System.Drawing.Size(76, 15);
-            this.lblLimits.TabIndex = 7;
+            this.lblLimits.TabIndex = 11;
             this.lblLimits.Text = "Magic anims:";
             //
             // txtLimits
             //
-            this.txtLimits.Location = new System.Drawing.Point(120, 110);
+            this.txtLimits.Location = new System.Drawing.Point(120, 164);
             this.txtLimits.Name = "txtLimits";
             this.txtLimits.Size = new System.Drawing.Size(525, 23);
-            this.txtLimits.TabIndex = 8;
+            this.txtLimits.TabIndex = 12;
             //
             // btnBrowseLimits
             //
-            this.btnBrowseLimits.Location = new System.Drawing.Point(651, 109);
+            this.btnBrowseLimits.Location = new System.Drawing.Point(651, 163);
             this.btnBrowseLimits.Name = "btnBrowseLimits";
             this.btnBrowseLimits.Size = new System.Drawing.Size(75, 25);
-            this.btnBrowseLimits.TabIndex = 9;
+            this.btnBrowseLimits.TabIndex = 13;
             this.btnBrowseLimits.Text = "Browse...";
             this.btnBrowseLimits.UseVisualStyleBackColor = true;
             this.btnBrowseLimits.Click += new System.EventHandler(this.BtnBrowseLimits_Click);
@@ -386,11 +430,11 @@
             //
             this.lblLimitsHint.AutoSize = true;
             this.lblLimitsHint.ForeColor = System.Drawing.SystemColors.GrayText;
-            this.lblLimitsHint.Location = new System.Drawing.Point(120, 137);
+            this.lblLimitsHint.Location = new System.Drawing.Point(120, 191);
             this.lblLimitsHint.Name = "lblLimitsHint";
             this.lblLimitsHint.Size = new System.Drawing.Size(560, 15);
-            this.lblLimitsHint.TabIndex = 10;
-            this.lblLimitsHint.Text = "Limit break and summon animations (.A00, extracted magic.lgp). Empty: next to the models.";
+            this.lblLimitsHint.TabIndex = 14;
+            this.lblLimitsHint.Text = "Limit breaks and summons (.A00, extracted magic.lgp). Empty: the magic folder next to battle.";
             //
             // lvResults
             //
@@ -401,9 +445,9 @@
             this.colDetails});
             this.lvResults.FullRowSelect = true;
             this.lvResults.HideSelection = false;
-            this.lvResults.Location = new System.Drawing.Point(12, 490);
+            this.lvResults.Location = new System.Drawing.Point(12, 544);
             this.lvResults.Name = "lvResults";
-            this.lvResults.Size = new System.Drawing.Size(736, 220);
+            this.lvResults.Size = new System.Drawing.Size(736, 190);
             this.lvResults.TabIndex = 4;
             this.lvResults.UseCompatibleStateImageBehavior = false;
             this.lvResults.View = System.Windows.Forms.View.Details;
@@ -431,7 +475,7 @@
             //
             // progress
             //
-            this.progress.Location = new System.Drawing.Point(12, 716);
+            this.progress.Location = new System.Drawing.Point(12, 740);
             this.progress.Name = "progress";
             this.progress.Size = new System.Drawing.Size(736, 14);
             this.progress.TabIndex = 5;
@@ -439,14 +483,14 @@
             // lblSummary
             //
             this.lblSummary.AutoSize = true;
-            this.lblSummary.Location = new System.Drawing.Point(12, 743);
+            this.lblSummary.Location = new System.Drawing.Point(12, 767);
             this.lblSummary.Name = "lblSummary";
             this.lblSummary.Size = new System.Drawing.Size(0, 15);
             this.lblSummary.TabIndex = 6;
             //
             // btnStart
             //
-            this.btnStart.Location = new System.Drawing.Point(376, 738);
+            this.btnStart.Location = new System.Drawing.Point(376, 762);
             this.btnStart.Name = "btnStart";
             this.btnStart.Size = new System.Drawing.Size(75, 28);
             this.btnStart.TabIndex = 7;
@@ -457,7 +501,7 @@
             // btnStop
             //
             this.btnStop.Enabled = false;
-            this.btnStop.Location = new System.Drawing.Point(457, 738);
+            this.btnStop.Location = new System.Drawing.Point(457, 762);
             this.btnStop.Name = "btnStop";
             this.btnStop.Size = new System.Drawing.Size(75, 28);
             this.btnStop.TabIndex = 8;
@@ -467,7 +511,7 @@
             //
             // btnOpenOut
             //
-            this.btnOpenOut.Location = new System.Drawing.Point(538, 738);
+            this.btnOpenOut.Location = new System.Drawing.Point(538, 762);
             this.btnOpenOut.Name = "btnOpenOut";
             this.btnOpenOut.Size = new System.Drawing.Size(129, 28);
             this.btnOpenOut.TabIndex = 9;
@@ -477,7 +521,7 @@
             //
             // btnClose
             //
-            this.btnClose.Location = new System.Drawing.Point(673, 738);
+            this.btnClose.Location = new System.Drawing.Point(673, 762);
             this.btnClose.Name = "btnClose";
             this.btnClose.Size = new System.Drawing.Size(75, 28);
             this.btnClose.TabIndex = 10;
@@ -489,7 +533,7 @@
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(760, 778);
+            this.ClientSize = new System.Drawing.Size(760, 802);
             this.Controls.Add(this.btnClose);
             this.Controls.Add(this.btnOpenOut);
             this.Controls.Add(this.btnStop);
@@ -550,6 +594,10 @@
         private System.Windows.Forms.CheckBox chk60fps;
         private System.Windows.Forms.Label lblLoops;
         private System.Windows.Forms.ComboBox cbLoops;
+        private System.Windows.Forms.Label lblAnims;
+        private System.Windows.Forms.TextBox txtAnims;
+        private System.Windows.Forms.Button btnBrowseAnims;
+        private System.Windows.Forms.Label lblAnimsHint;
         private System.Windows.Forms.Label lblLimits;
         private System.Windows.Forms.TextBox txtLimits;
         private System.Windows.Forms.Button btnBrowseLimits;

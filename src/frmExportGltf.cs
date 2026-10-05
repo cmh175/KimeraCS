@@ -328,7 +328,7 @@ namespace KimeraCS
                 Cursor.Current = oldCursor;
             }
 
-            string report = FF7FieldGltfExporter.FormatReport(res);
+            string report = GltfRigExporter.FormatReport(res);
             txtReport.Text = report;
             try
             {

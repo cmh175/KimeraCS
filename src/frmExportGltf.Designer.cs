@@ -349,7 +349,7 @@
             this.lblFpsHint.Name = "lblFpsHint";
             this.lblFpsHint.Size = new System.Drawing.Size(520, 15);
             this.lblFpsHint.TabIndex = 2;
-            this.lblFpsHint.Text = "Timestamps only (FFNx ignores them). Field animations are 30fps.";
+            this.lblFpsHint.Text = "Timestamps only (speed in viewers). Field animations are 30 fps.";
             //
             // lblRest
             //
@@ -403,7 +403,7 @@
             this.chkBake.Name = "chkBake";
             this.chkBake.Size = new System.Drawing.Size(260, 19);
             this.chkBake.TabIndex = 7;
-            this.chkBake.Text = "Bake vertex colours of untextured parts";
+            this.chkBake.Text = "Bake vertex colors of untextured parts";
             this.chkBake.UseVisualStyleBackColor = true;
             //
             // chk60fps

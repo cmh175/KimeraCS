@@ -128,7 +128,7 @@ namespace KimeraCS
         }
 
         // A single P (or 3DS) model as Kimera shows it. Single P files carry no textures (those come
-        // from an RSD), so untextured groups get the vertex colour bake.
+        // from an RSD), so untextured groups get the vertex color bake.
         public static Result ExportPModel(PModel m, Options opt)
         {
             Result res = new Result();
@@ -149,7 +149,7 @@ namespace KimeraCS
 
             if (m.Groups != null && m.Groups.Any(g => g.texFlag == 1))
                 res.Warnings.Add("A single .P file has no texture list (textures come from its .RSD); textured groups are " +
-                                 "exported with vertex colours. Load the .RSD instead to keep the textures.");
+                                 "exported with vertex colors. Load the .RSD instead to keep the textures.");
 
             return Write(rig, opt, res, (m.fileName ?? "") + " (P model)");
         }
@@ -186,7 +186,7 @@ namespace KimeraCS
                     Texture = null,
                 });
             }
-            res.Report.Add("TMD objects: " + n + " (exported untextured, with vertex colours: TMD textures aren't loaded by Kimera)");
+            res.Report.Add("TMD objects: " + n + " (exported untextured, with vertex colors: TMD textures aren't loaded by Kimera)");
 
             return Write(rig, opt, res, tmdName + " (TMD)");
         }

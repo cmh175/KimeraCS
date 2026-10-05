@@ -20,12 +20,12 @@ namespace KimeraCS
     // animation pack (??DA) and limit break packs (*.A00), or a magic/summon model (.D + .A00),
     // -> glTF for FFNx.
     //
-    // Conventions (FFNx reads battle models this way since 2026-10-03; files go in mesh\battle):
+    // Conventions (the ones FFNx reads battle models by; battle files go in mesh\battle):
     //   - joints "bone_00".."bone_NN" (battle bones have no names), parents like Kimera's drawing code
     //   - joint rest translation = (0, 0, +length of parent bone); rotations use Kimera's quaternion math
     //   - root node = Kimera's root placement turned 180 degrees about Z like the rest of the model:
     //     translation (-startX, -startY, startZ), rotation flipZ * q(root). Battle frames are Y-down (e.g.
-    //     Cloud's root at Y -466 bobbing to -450); used as-is the bob came out upside down (hopping).
+    //     Cloud's root at Y -466 bobbing to -450), so Y is negated as well.
     //   - all weapon models are bound to one extra joint "weapon", animated by the weapon animation
     //     track (weapon animation i belongs to body animation i), relative to the body root
     //   - animations "ANIM_00".. in pack order; limit breaks "<PACK>_00".. (e.g. LIMCL2_00)
@@ -40,7 +40,7 @@ namespace KimeraCS
         {
             public string OutputFolder = "";
             public string FileName = "";
-            public float Fps = 30;
+            public float Fps = 15;                         // only used for timestamps; battle animations are 15 fps
             public string TexturePrefix = "";
             public bool WriteDDS = true;
             public bool BakeVertexColors = true;
@@ -60,10 +60,10 @@ namespace KimeraCS
 
         public class Result : GltfRigExporter.Result { }
 
-        // Part file names, same suffix walk as the BattleSkeleton constructor (??AM, ??AN, .. ??AZ, ??BA ..).
-        // The glTF name FFNx looks for: FFNx loads mesh\field\<piece>.gltf for each piece (.p file) it loads,
-        // so the export is named after the model's first piece (Cloud: RTAM), not the skeleton (RTAA). Magic
-        // pieces are <name>.P00 ...; FFNx drops the extension, which leaves the magic model's own name.
+        // The glTF name FFNx looks for: FFNx looks a model up by the name of each piece (.p file) it loads
+        // (battle models in mesh\battle), so the export is named after the model's first piece (Cloud: RTAM),
+        // not the skeleton (RTAA). Magic pieces are <name>.P00 ...; FFNx drops the extension, which leaves the
+        // magic model's own name.
         public static string FirstPieceName(BattleSkeleton skel, bool isMagic)
         {
             if (isMagic) return Path.GetFileNameWithoutExtension(skel.fileName).ToUpperInvariant();
@@ -73,6 +73,7 @@ namespace KimeraCS
             return skel.fileName.ToUpperInvariant();
         }
 
+        // Part file names, same suffix walk as the BattleSkeleton constructor (??AM, ??AN, .. ??AZ, ??BA ..).
         public static string BattlePartName(string baseName, int boneIndex)
         {
             int s1 = 'A', s2 = 'M';
@@ -107,8 +108,10 @@ namespace KimeraCS
             return true;
         }
 
-        // Limit break packs of a battle model (Kimera's limit table in FileTools), found in folder.
-        // The limit break packs Kimera's limit table lists for a battle model (none for enemies).
+        // Limit break packs are read like Kimera's own loader reads them: 8 body and 8 weapon animations.
+        public const int LIMIT_PACK_ANIMATIONS = 8;
+
+        // The limit break packs Kimera's limit table (FileTools) lists for a battle model (none for enemies).
         public static List<string> ExpectedLimitPacks(string skeletonFileName)
         {
             List<string> expected = new List<string>();
@@ -120,6 +123,7 @@ namespace KimeraCS
             return expected;
         }
 
+        // Those of the listed limit break packs that exist in folder (full paths).
         public static List<string> FindLimitPacks(string skeletonFileName, string folder)
         {
             List<string> found = new List<string>();
@@ -174,7 +178,7 @@ namespace KimeraCS
             {
                 if (skel.IsBattleLocation)
                 {
-                    res.Errors.Add("Battle scenes (locations) have no skeleton; exporting them isn't supported yet.");
+                    res.Errors.Add("Battle scenes (locations) have no skeleton; they are exported as static models (FF7StaticGltfExporter).");
                     return res;
                 }
                 if (skel.bones == null || skel.bones.Count == 0)
@@ -186,7 +190,7 @@ namespace KimeraCS
                 string baseName = isMagic ? Path.GetFileNameWithoutExtension(skel.fileName).ToUpperInvariant()
                                           : skel.fileName.Substring(0, 2).ToUpperInvariant();
                 if (string.IsNullOrWhiteSpace(opt.FileName)) opt.FileName = FirstPieceName(skel, isMagic);
-                if (opt.Fps <= 0) opt.Fps = 30;
+                if (opt.Fps <= 0) opt.Fps = 15;
                 if (opt.To60Fps) opt.Fps = 15;            // battle animations are 15 fps: four keys per frame
 
                 int nb = skel.bones.Count;
@@ -458,11 +462,11 @@ namespace KimeraCS
                         res.Errors.Add("Limit break pack not found: " + lp);
                         continue;
                     }
-                    BattleAnimationsPack pack = ReadPack(lp, nb, 8, 8, true);
+                    BattleAnimationsPack pack = ReadPack(lp, nb, LIMIT_PACK_ANIMATIONS, LIMIT_PACK_ANIMATIONS, true);
                     AddPack(pack, Path.GetFileNameWithoutExtension(lp).ToUpperInvariant(), null);
                 }
 
-                // limit break parts glide into the next part (or the idle ...) instead of looping back
+                // limit break parts glide into the next part or hold their last frame instead of looping back
                 foreach (GltfRigExporter.Animation ga in rig.Animations)
                 {
                     if (!loopInto.TryGetValue(ga.Name, out string target)) continue;

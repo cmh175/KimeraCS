@@ -348,7 +348,7 @@
             this.lblFpsHint.Name = "lblFpsHint";
             this.lblFpsHint.Size = new System.Drawing.Size(360, 15);
             this.lblFpsHint.TabIndex = 2;
-            this.lblFpsHint.Text = "Timestamps only (FFNx ignores them).";
+            this.lblFpsHint.Text = "Timestamps only (speed in viewers). Battle animations are 15 fps.";
             //
             // lblRest
             //
@@ -452,7 +452,7 @@
             this.chkBake.Name = "chkBake";
             this.chkBake.Size = new System.Drawing.Size(260, 19);
             this.chkBake.TabIndex = 10;
-            this.chkBake.Text = "Bake vertex colours of untextured parts";
+            this.chkBake.Text = "Bake vertex colors of untextured parts";
             this.chkBake.UseVisualStyleBackColor = true;
             //
             // chk60fps

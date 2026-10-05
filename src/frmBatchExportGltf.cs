@@ -21,8 +21,8 @@ namespace KimeraCS
     //   magic / summon (.D): all animations;  .RSD / .TMD / .P: static export
     //
     // Output is sorted into type folders like FFNx's mesh folder: field\, world\, battle\, magic\,
-    // minigame\ (each with its own textures\), reports in _reports\. FFNx 1.24.0 only reads
-    // mesh\field\ (for every .p file it loads); the other names follow the game's .lgp files.
+    // minigame\ (each with its own textures\), reports in _reports\. FFNx reads mesh\field\ and, in
+    // newer builds, mesh\battle\; the other names follow the game's .lgp files.
     //
     public partial class FrmBatchExportGltf : Form
     {
@@ -37,7 +37,6 @@ namespace KimeraCS
 
         private class Job
         {
-            public string Entry;          // as typed
             public string Name;           // display / output name
             public string File;           // full path
             public Kind Kind;
@@ -120,7 +119,7 @@ namespace KimeraCS
 
         private Job Resolve(string entry, string dir)
         {
-            Job j = new Job { Entry = entry };
+            Job j = new Job();
             string ext = Path.GetExtension(entry).ToLowerInvariant();
             string p;
 

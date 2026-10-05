@@ -7,18 +7,17 @@ namespace KimeraCS
     // Which animations loop, for the 60 fps conversion's "Auto" setting.
     //
     // A loop also gets in-between keys from its last frame back to its first; a one-shot must not, or its
-    // end blends back towards its first pose (FFNx stretches the keys over the game's animation, so those
+    // end blends back toward its first pose (FFNx stretches the keys over the game's animation, so those
     // extra keys are shown). An animation's movement can't tell the two apart (most battle one-shots end in
     // the pose they started from), so this follows the official 60FPS mod (v1.11), which was made with
     // Kimera's interpolation and its loop question answered per animation: 4n frames = loop, 4n - 3 =
-    // one-shot. The lists below are read from the mod's own files (devtools/loop_check.py compares).
+    // one-shot. The lists below are read from the mod's own files.
     //   field:  the mod converts every animation as a one-shot (2n - 1 frames)
     //   battle: the idle (ANIM_00) loops, except for a few models; some other animations loop too
     //   limit breaks: per part, and where its last frames glide: most parts glide into the next part's first
     //   frame (the game plays them one after the other: Braver 00 -> 01 -> 02 -> 03), some hold their last
     //   frame (Tifa's LIMFAST parts end in her idle stance), one glides into another part, and the parts that
     //   repeat a pose loop back to their own start
-    //   (devtools/limit_seams.py measures it in the mod's files)
     //   summons: everything loops, except Mog's second animation and the Knights of the Round (KNIGHT01..13,
     //   one animation each: one-shots in the mod's KOTRAnimation60FPS files, except knight11)
     // Animations the mod doesn't have (new models, new packs) follow the same rules.
@@ -92,7 +91,7 @@ namespace KimeraCS
             else if (e.Contains('>'))
             {
                 string t = e.Split('>')[1];
-                into = t == "" ? p + "_" + (index + 1).ToString("00") : t == "A" ? "ANIM_00" : p + "_" + int.Parse(t).ToString("00");
+                into = p + "_" + (t == "" ? index + 1 : int.Parse(t)).ToString("00");
             }
             return true;
         }

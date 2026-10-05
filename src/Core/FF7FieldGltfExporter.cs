@@ -19,14 +19,15 @@ namespace KimeraCS
     // Field model (HRC skeleton + RSD/P parts + TEX textures) + field animations (.a) -> glTF for
     // FFNx. Also used for world map, chocobo racing and motorbike game models (same format).
     //
-    // Field conventions (checked against a gltf that works in FFNx 1.24.0, see PROJECT_NOTES.md):
+    // Field conventions (checked against a gltf that works in FFNx 1.24.0):
     //   - one joint per HRC bone, named like the bone
     //   - joint rest translation = (0, 0, -length of parent bone); rotations use Kimera's own
     //     quaternion math: q = qY(beta) * qX(alpha) * qZ(gamma)
     //   - root node = Kimera's root placement turned 180 degrees about Z like the rest of the model.
     //     Kimera draws it as T(x, -y, z) * q(root) in FF7's Y-down space, so the root node gets
     //     translation (-x, y, z) and rotation flipZ * q(root). (CrossSlash writes (x, y, z) and
-    //     q(root) * flipZ, which mirrors sideways root motion and root turns; FFNx ignores the root.)
+    //     q(root) * flipZ, which mirrors sideways root motion and root turns.) FFNx 1.24.0 ignores the
+    //     root node; newer FFNx builds play its animation as the model's root motion.
     //   - one animation key per stored .a frame (no frame conversion); timestamps = frame / fps
     //
     public static class FF7FieldGltfExporter
@@ -44,7 +45,7 @@ namespace KimeraCS
             public float Fps = 30;                    // only used for timestamps
             public string TexturePrefix = "";         // image names become <prefix>_0, <prefix>_1 ...
             public bool WriteDDS = true;
-            public bool BakeVertexColors = true;      // untextured parts get a baked colour texture
+            public bool BakeVertexColors = true;      // untextured parts get a baked color texture
             public RestPoseMode RestPose = RestPoseMode.CurrentFrame;
             public FieldFrame? RestFrame = null;      // pose for CurrentFrame; root placement for both
             public string AnimationFolder = "";
@@ -384,7 +385,7 @@ namespace KimeraCS
                         ga.R[bi] = rot;
                     }
 
-                    // root node: FFNx ignores it, viewers (Blender, Maya) use it
+                    // root node: viewers (Blender, Maya) use it; FFNx 1.24.0 ignores it, newer builds play it as root motion
                     {
                         Quaternion prevQ = rig.RootRestR;
                         for (int f = 0; f < nf; f++)
@@ -426,7 +427,5 @@ namespace KimeraCS
 
             return res;
         }
-
-        public static string FormatReport(GltfRigExporter.Result r) => GltfRigExporter.FormatReport(r);
     }
 }

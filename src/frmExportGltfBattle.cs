@@ -71,9 +71,9 @@ namespace KimeraCS
                 rbRestZero.Checked = true;
             }
 
-            // file names: FFNx looks for mesh\field\<piece>.gltf, so the default is the first piece (Cloud: RTAM),
-            // then the other pieces, then the skeleton file. Magic pieces are <name>.P00 ...; FFNx drops the
-            // extension, which leaves the magic model's own name.
+            // file names: FFNx looks a model up by the name of its pieces (battle models in mesh\battle), so the
+            // default is the first piece (Cloud: RTAM), then the other pieces, then the skeleton file. Magic
+            // pieces are <name>.P00 ...; FFNx drops the extension, which leaves the magic model's own name.
             cbFileName.Items.Add(FF7BattleGltfExporter.FirstPieceName(bSkeleton, isMagic));
             if (!isMagic)
             {
@@ -200,7 +200,8 @@ namespace KimeraCS
                 string desc = Path.GetFileNameWithoutExtension(f).ToUpperInvariant();
                 try
                 {
-                    BattleAnimationsPack p = FF7BattleGltfExporter.ReadPack(f, skeleton.nBones, 8, 8, true);
+                    BattleAnimationsPack p = FF7BattleGltfExporter.ReadPack(f, skeleton.nBones, FF7BattleGltfExporter.LIMIT_PACK_ANIMATIONS,
+                                                                            FF7BattleGltfExporter.LIMIT_PACK_ANIMATIONS, true);
                     desc += "   " + p.SkeletonAnimations.Count(a => a.frames != null && a.frames.Count > 0) + " animations";
                 }
                 catch { desc += "   (can't read)"; }

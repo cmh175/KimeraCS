@@ -152,7 +152,7 @@ namespace KimeraCS
 
                     //  Read up to the larger of the two frame counts: numFramesShort is usually the higher one, but
                     //  some files store a much lower value there (Knights of the Round, knight01: 5 for 86 frames,
-                    //  numFrames = 86). Reading stops when the data runs out, as before.
+                    //  numFrames = 86). Reading stops when the data runs out.
                     int maxFrames = Math.Max((int)numFramesShort, numFrames);
                     for (fi = 1; fi < maxFrames; fi++)
                     {

@@ -21,10 +21,11 @@ namespace KimeraCS
     // for FFNx's smooth-skinned model loader. The format adapters (FF7FieldGltfExporter,
     // FF7BattleGltfExporter) turn Kimera's loaded models into a Rig.
     //
-    // Conventions (checked against a gltf that works in FFNx 1.24.0, see PROJECT_NOTES.md):
+    // Conventions (checked against a gltf that works in FFNx 1.24.0):
     //   - skin.joints in depth-first order; FFNx matches animation channels to joints by name
     //   - a "root" node (not a joint) holds the root placement, with a 180 degree turn about Z
-    //     (FF7 is Y-down, glTF is Y-up); FFNx ignores it, viewers use it
+    //     (FF7 is Y-down, glTF is Y-up). Viewers use it; FFNx 1.24.0 ignores it, newer FFNx builds
+    //     play its animation as the model's root motion
     //   - meshes are children of "root", never of bones; each part is rigidly bound to its bone
     //   - every joint gets translation AND rotation keys in every animation
     //   - each accessor has its own bufferView (FFNx ignores accessor offsets and strides)
@@ -86,8 +87,8 @@ namespace KimeraCS
             public float Fps = 30;                    // only used for timestamps
             public string TexturePrefix = "";         // image names become <prefix>_0, <prefix>_1 ...
             public bool WriteDDS = true;
-            public bool BakeVertexColors = true;      // untextured parts get a baked colour texture
-            public bool Unlit = true;                 // KHR_materials_unlit: field colours have the lighting baked in;
+            public bool BakeVertexColors = true;      // untextured parts get a baked color texture
+            public bool Unlit = true;                 // KHR_materials_unlit: field colors have the lighting baked in;
                                                       // battle models are lit by the game (viewers only, FFNx ignores it)
             public int FrameRateFactor = 1;           // > 1: keys per stored frame (2 = 30 -> 60 fps, 4 = 15 -> 60 fps),
                                                       // timestamps at FrameRateFactor x Fps (see MultiplyFrameRate)
@@ -154,7 +155,7 @@ namespace KimeraCS
             public int DoubleSidedGroups = 0;
             public Dictionary<int, int> DoubleSidedMaterial = new Dictionary<int, int>();   // material -> its two-sided copy
 
-            // baked vertex colour atlas
+            // baked vertex color atlas
             public int BakeCols, BakeSize;
             public int BakeNext = 0;
             public byte[] BakePixels;
@@ -167,9 +168,10 @@ namespace KimeraCS
             return ctx.Sampler;
         }
 
-        // alphaMode: null = opaque, "MASK" = see-through pixels fully on or off (FF7 colour-keyed textures),
-        // "BLEND" = semi-transparent (groups with V_ALPHABLEND). FFNx ignores it; viewers draw BLEND parts
-        // without writing depth, so a model made only of BLEND parts shows its parts in the wrong order.
+        // alphaMode: null = opaque, "MASK" = see-through pixels fully on or off (FF7 color-keyed textures),
+        // "BLEND" = semi-transparent (groups with V_ALPHABLEND). FFNx 1.24.0 ignores it, newer FFNx builds
+        // draw each part with its alpha mode. Viewers draw BLEND parts without writing depth, so a model
+        // made only of BLEND parts shows its parts in the wrong order.
         private static JsonObject NewMaterial(string name, int textureIndex, string alphaMode, bool unlit)
         {
             JsonObject pbr = new JsonObject();
@@ -263,18 +265,22 @@ namespace KimeraCS
             return h.shademode != 2;
         }
 
-        // Same decision as ModelDrawing.DrawPModel (V_NOCULL): the group is drawn with both sides of every
-        // polygon. Vanilla models never set it; some mods (e.g. Ninostyle) rely on it for open meshes.
         // Same decision as ModelDrawing.DrawPModel (V_ALPHABLEND): the group is drawn semi-transparent.
         private static bool IsAlphaBlend(PHundret h) => (h.field_C & 0x400) != 0 && (h.field_8 & 0x400) != 0;
 
+        // Same decision as ModelDrawing.DrawPModel (V_NOCULL): the group is drawn with both sides of every
+        // polygon. Vanilla models never set it; some mods (e.g. Ninostyle) rely on it for open meshes.
         private static bool IsNoCull(PHundret h) => (h.field_C & 0x4000) != 0 && (h.field_8 & 0x4000) != 0;
 
-        // A copy of a material with "doubleSided": true (viewers and FFNx then draw both sides). The baked
-        // colour material doesn't exist yet while meshes are built: it is -2, and its two-sided copy -3.
+        // The baked color material is only written after every mesh is built; until then primitives carry
+        // these placeholder indexes (replaced in Write).
+        private const int BAKE_MATERIAL_PENDING = -2;
+        private const int BAKE_MATERIAL_PENDING_TWO_SIDED = -3;
+
+        // A copy of a material with "doubleSided": true (viewers and FFNx then draw both sides).
         private static int DoubleSided(ExportContext ctx, int material)
         {
-            if (material == -2) return -3;
+            if (material == BAKE_MATERIAL_PENDING) return BAKE_MATERIAL_PENDING_TWO_SIDED;
             if (ctx.DoubleSidedMaterial.TryGetValue(material, out int twin)) return twin;
             JsonObject copy = (JsonObject)ctx.Gltf.Materials[material].DeepClone();
             copy["doubleSided"] = true;
@@ -283,16 +289,16 @@ namespace KimeraCS
             return twin;
         }
 
-        // Fills one BAKE_CELL x BAKE_CELL cell with a triangle's vertex colours and returns the UVs
-        // of the triangle's three corners. Pixels outside the triangle get the nearest colour so
-        // filtering never bleeds the neighbouring cell in.
+        // Fills one BAKE_CELL x BAKE_CELL cell with a triangle's vertex colors and returns the UVs
+        // of the triangle's three corners. Pixels outside the triangle get the nearest color so
+        // filtering never bleeds the neighboring cell in.
         private static float[] BakeTriangle(ExportContext ctx, Color c0, Color c1, Color c2)
         {
             int cell = ctx.BakeNext++;
             int x0 = (cell % ctx.BakeCols) * BAKE_CELL;
             int y0 = (cell / ctx.BakeCols) * BAKE_CELL;
 
-            // corner positions in pixel space (texel centres, inset by one texel)
+            // corner positions in pixel space (texel centers, inset by one texel)
             double ax = x0 + 1.5, ay = y0 + 1.5;
             double bx = x0 + BAKE_CELL - 1.5, by = y0 + 1.5;
             double cx = x0 + 1.5, cy = y0 + BAKE_CELL - 1.5;
@@ -440,7 +446,7 @@ namespace KimeraCS
                         if (vi[0] >= g.numVert || vi[1] >= g.numVert || vi[2] >= g.numVert) { badPolys++; continue; }
 
                         Color c0 = ColorOf(vi[0]), c1 = ColorOf(vi[1]), c2 = ColorOf(vi[2]);
-                        if (flat) c0 = c1 = c2;   // GL flat shading uses the last vertex's colour
+                        if (flat) c0 = c1 = c2;   // GL flat shading uses the last vertex's color
 
                         float[] uv = BakeTriangle(ctx, c0, c1, c2);
                         int b = p.VertexCount;
@@ -601,14 +607,13 @@ namespace KimeraCS
                 used.Add(nm);
             }
 
-            if (nj > 255)
+            if (nj > FFNX_MAX_BONES_NEWER)
             {
-                res.Errors.Add("The model has " + nj + " bones; glTF joint indices for FFNx are 8-bit (max 255).");
+                res.Errors.Add("The model has " + nj + " bones; no FFNx build supports more than " + FFNX_MAX_BONES_NEWER +
+                               " (joint indices are 8-bit).");
                 return;
             }
-            if (nj > FFNX_MAX_BONES_NEWER)
-                res.Warnings.Add("The model has " + nj + " bones; no FFNx build supports more than " + FFNX_MAX_BONES_NEWER + ".");
-            else if (nj > FFNX_MAX_BONES)
+            if (nj > FFNX_MAX_BONES)
                 res.Warnings.Add("The model has " + nj + " bones; FFNx 1.24.0 supports " + FFNX_MAX_BONES +
                                  " (newer builds up to " + FFNX_MAX_BONES_NEWER + ").");
 
@@ -665,8 +670,8 @@ namespace KimeraCS
                 ctx.BakePixels = new byte[size * size * 4];
                 for (int i = 3; i < ctx.BakePixels.Length; i += 4) ctx.BakePixels[i] = 255;
 
-                // the material is registered now; its image is written after all meshes are baked
-                ctx.BakeMaterial = -2;
+                // placeholder until every mesh is baked; the material and its image are written afterwards
+                ctx.BakeMaterial = BAKE_MATERIAL_PENDING;
             }
 
             List<int> meshNodes = new List<int>();
@@ -686,19 +691,19 @@ namespace KimeraCS
                 foreach (JsonNode mesh in gb.Meshes)
                     foreach (JsonNode prim in (JsonArray)mesh["primitives"])
                     {
-                        if ((int)prim["material"] == -2) prim["material"] = bakeMat;
-                        else if ((int)prim["material"] == -3)
+                        if ((int)prim["material"] == BAKE_MATERIAL_PENDING) prim["material"] = bakeMat;
+                        else if ((int)prim["material"] == BAKE_MATERIAL_PENDING_TWO_SIDED)
                         {
                             if (bakeMat2 < 0) bakeMat2 = DoubleSided(ctx, bakeMat);
                             prim["material"] = bakeMat2;
                         }
                     }
-                res.Report.Add("  baked vertex colours of " + ctx.BakeNext + " untextured triangles -> textures\\" +
+                res.Report.Add("  baked vertex colors of " + ctx.BakeNext + " untextured triangles -> textures\\" +
                                bakeName + ".png (" + ctx.BakeSize + "x" + ctx.BakeSize + ")");
             }
             else if (!opt.BakeVertexColors && ctx.PlainColorMaterial >= 0)
             {
-                res.Warnings.Add("Untextured parts use vertex colours only (bake off). FFNx 1.24.0 draws them invisible.");
+                res.Warnings.Add("Untextured parts use vertex colors only (bake off). FFNx 1.24.0 draws them invisible.");
             }
 
             if (meshNodes.Count == 0) res.Warnings.Add("The model has no geometry.");
@@ -774,7 +779,7 @@ namespace KimeraCS
                     AddChannel(nodeOfJoint[j], "rotation", anim.R[j], "VEC4");
                 }
 
-                // root node: FFNx ignores it, viewers (Blender, Maya) use it
+                // root node: viewers (Blender, Maya) use it; FFNx 1.24.0 ignores it, newer builds play it as root motion
                 AddChannel(rootNode, "translation", anim.RootT, "VEC3");
                 AddChannel(rootNode, "rotation", anim.RootR, "VEC4");
 
@@ -815,7 +820,7 @@ namespace KimeraCS
             return new double[] { r[0], r[1], r[2] };
         }
 
-        // Shortest-path slerp (never the long way round).
+        // Shortest-path slerp (never the long way around).
         private static double[] QSlerp(double[] a, double[] b, double t)
         {
             double d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
@@ -855,7 +860,8 @@ namespace KimeraCS
         // same counts (2n - 1 for field, 4n or 4n - 3 for battle). Loops = Auto (default) takes each
         // animation's loop choice from the 60FPS mod (Animation.Loop, see SixtyFpsLoops): FFNx shows the
         // loop-closing keys when it stretches the keys over the game's frame count, so a one-shot exported as
-        // a loop blends back towards its first pose at the end.
+        // a loop blends back toward its first pose at the end. Loops = All closes every animation; limit
+        // break parts still close the way the game continues (LoopInto / LoopHold), not into their own start.
         //
         // In-betweens blend the whole body like Kimera's own interpolation (the 60FPS mod was made with it):
         // each joint's rotation is accumulated down the hierarchy from the root, those whole-body rotations
@@ -928,7 +934,8 @@ namespace KimeraCS
                     continue;
                 }
 
-                // after the last frame: blend into the first frame of LoopInto (the next limit break part ...)
+                // after the last frame: hold it (LoopHold) or blend into the first frame of LoopInto (the next
+                // limit break part)
                 Animation b = a;
                 if (f == nf - 1 && a.LoopHold) g = f;
                 else if (f == nf - 1 && a.LoopInto != null && a.LoopInto.Frames > 0) { b = a.LoopInto; g = 0; }

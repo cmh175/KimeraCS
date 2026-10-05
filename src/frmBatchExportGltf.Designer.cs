@@ -319,7 +319,7 @@
             this.chkBake.Name = "chkBake";
             this.chkBake.Size = new System.Drawing.Size(260, 19);
             this.chkBake.TabIndex = 3;
-            this.chkBake.Text = "Bake vertex colours of untextured parts";
+            this.chkBake.Text = "Bake vertex colors of untextured parts";
             this.chkBake.UseVisualStyleBackColor = true;
             //
             // chk60fps

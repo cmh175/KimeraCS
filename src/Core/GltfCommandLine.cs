@@ -28,16 +28,18 @@ namespace KimeraCS
     //   --anims, frame 0). The root placement always comes from that frame.
     //   --60fps: field 30 -> 60 fps (2 keys per frame), battle/magic 15 -> 60 fps (4 keys per frame).
     //   --loops auto (default): loop or one-shot per animation as the official 60FPS mod (SixtyFpsLoops);
-    //   all: every animation also blends back into its first frame; none: no animation does.
+    //   all: every animation also blends back into its first frame (limit break parts: into what the game
+    //   plays next); none: no animation does.
     //
     // Battle (??AA) and magic/summon (.D) models:
     //   KimeraCS.exe --export-gltf-battle <model> --out <folder>
-    //                [--name RTAA] [--fps 30] [--prefix cloud_b] [--no-dds] [--no-bake]
+    //                [--name RTAM] [--fps 15] [--prefix cloud_b] [--no-dds] [--no-bake]
     //                [--anims all|none|0,1,5] [--limits auto|none|LIMCL2,BLAVER] [--limits-dir <folder>]
-    //   --limits-dir: folder with the limit break .A00 files (an extracted magic.lgp); summon models also take
-    //   their animations (<name>.A00) from it when there is none next to the model (model-only mods).
     //                [--weapons all|current|none] [--weapon 0] [--rest zero|frame] [--rest-anim 0[:frame]]
     //                [--60fps] [--loops all|auto|none]
+    //   --fps: timestamps only (default 15, the frame rate of battle animations).
+    //   --limits-dir: folder with the limit break .A00 files (an extracted magic.lgp); summon models also take
+    //   their animations (<name>.A00) from it when there is none next to the model (model-only mods).
     //
     // Static models (RSD resource, single .P, .TMD, or a battle scene ??AA):
     //   KimeraCS.exe --export-gltf-static <file> --out <folder> [--name X] [--prefix x] [--no-dds] [--no-bake]

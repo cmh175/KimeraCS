@@ -6,7 +6,7 @@ rem model, its skeleton and that animation with textures embedded, plus <name>_f
 rem "pelvis" bone on top that carries the body motion (standing height, walking, jumping), FF7 joints under it.
 rem
 rem Options can follow the file when run from a command line, e.g.:
-rem   gltf_to_fbx.bat RTAA.gltf --fps 15          (FF7 battle animations are 15 fps)
+rem   gltf_to_fbx.bat RTAM.gltf --fps 15          (sets the frame rate; default: the glTF's own)
 rem   gltf_to_fbx.bat AAAC.gltf --height 1.8 --anims ACFE,AAFF
 rem   --skeleton-only (animation files without the model), --model-file (also <name>.fbx in the rest pose)
 rem

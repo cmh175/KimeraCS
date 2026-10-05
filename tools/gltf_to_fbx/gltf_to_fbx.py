@@ -9,25 +9,26 @@ Runs inside Blender 4.5 in the background (no Blender window):
             [--anims ACFE,AAFF | --anims all] [--skeleton-only] [--model-file]
 
   --out        output folder (default: <gltf folder>\\fbx)
-  --height     model height in metres (default 1.7; FF7 units are not metric)
+  --height     model height in meters (default 1.7; FF7 units are not metric)
   --anims      which animations to write (default: all)
   --skeleton-only  animation FBXs without the model (skeleton and animation only)
   --model-file     also write <name>.fbx: the model in its rest pose, without animation
-  --fps        frame rate of the FBX animations (default: from the glTF timestamps). FF7 battle animations are
-               15 fps; KimeraCS battle exports use 30 fps timestamps unless converted to 60 fps.
+  --fps        frame rate of the FBX animations (default: from the glTF timestamps; KimeraCS writes 30 fps for
+               field animations, 15 fps for battle animations and 60 fps when converting to 60 fps)
 
 What changes on the way:
   - The FF7 root placement (standing height, walking and jumping travel, turns), which KimeraCS keeps on a
     non-bone "root" node, becomes a "pelvis" bone at the top of the skeleton. The FF7 root joints (field: hip,
     l_hip, r_hip; battle: bone_00, weapon) hang under it, so the skeleton is one tree with the body motion on its
     top bone, the way HumanIK and other retargeting systems expect.
-  - Blender space (Z up, facing -Y; FBX units are centimetres after export).
+  - Blender space (Z up, facing -Y; FBX units are centimeters after export).
   - The rest pose is KimeraCS's export rest pose (the bind pose of the glTF).
 """
+import atexit
 import bpy
 import json
-import math
 import os
+import shutil
 import struct
 import sys
 import tempfile
@@ -43,7 +44,6 @@ while i < len(argv):
     if a == '--out': opt['out'] = argv[i + 1]; i += 2
     elif a == '--height': opt['height'] = float(argv[i + 1]); i += 2
     elif a == '--anims': opt['anims'] = argv[i + 1]; i += 2
-    elif a == '--with-mesh': opt['with_mesh'] = True; i += 1
     elif a == '--skeleton-only': opt['with_mesh'] = False; i += 1
     elif a == '--model-file': opt['model_file'] = True; i += 1
     elif a == '--fps': opt['fps'] = int(argv[i + 1]); i += 2
@@ -107,7 +107,7 @@ S = opt['height'] / src_height
 log('Model: %s (%d joints, height %.2f glTF units -> %.2f m, x%.4f)' % (opt['gltf'], len(joints), src_height, opt['height'], S))
 
 def to_blender(m):
-    """glTF world matrix -> rigid Blender matrix, translation scaled to metres."""
+    """glTF world matrix -> rigid Blender matrix, translation scaled to meters."""
     b = C4 @ m @ C4i
     t, q, _ = b.decompose()
     r = q.normalized().to_matrix().to_4x4()
@@ -194,6 +194,7 @@ def clear_share(img):
     return sum(1 for x in a if x < 0.5) / float(max(1, len(a)))
 
 rgb_dir = tempfile.mkdtemp(prefix='gltf_to_fbx_')
+atexit.register(shutil.rmtree, rgb_dir, True)          # the copies are embedded in the FBX files; not needed afterwards
 def rgb_copy(img):
     """The same picture as an RGB PNG (no alpha channel), loaded for embedding in the FBX."""
     w, h = img.size

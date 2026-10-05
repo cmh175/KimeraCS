@@ -79,6 +79,7 @@
 const { GLTFLoader, OrbitControls } = THREE;
 
 const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');   // text put into the page's HTML
 
 function setInfo(text, problem) {
   $('infoText').textContent = text;
@@ -86,7 +87,7 @@ function setInfo(text, problem) {
 }
 
 // ------------------------------------------------------------------ scene
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.outputEncoding = THREE.sRGBEncoding;
 $('view').appendChild(renderer.domElement);
@@ -126,19 +127,29 @@ function frameCamera() {
   camera.position.set(center.x + d * 0.55, center.y + d * 0.25, center.z + d);
   camera.near = d / 200; camera.far = d * 50; camera.updateProjectionMatrix();
   controls.target.copy(center); controls.update();
-  if (grid) scene.remove(grid);
+  if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
   grid = new THREE.GridHelper(Math.max(size.x, size.z) * 3 + 1, 20, 0x666666, 0x444444);
   grid.position.y = box.min.y; scene.add(grid);
 }
 
 // ------------------------------------------------------------------ loading
+// frees a model's geometry and textures on the graphics card (three.js keeps them until told)
+function disposeModel(root) {
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.geometry.dispose();
+    if (o.skeleton) o.skeleton.dispose();
+    for (const m of [].concat(o.material)) { if (m.map) m.map.dispose(); m.dispose(); }
+  });
+}
+
 function showModel(gltf, label) {
-  if (model) scene.remove(model);
-  if (helper) { scene.remove(helper); helper = null; }
+  if (model) { scene.remove(model); disposeModel(model); }
+  if (helper) { scene.remove(helper); helper.geometry.dispose(); helper.material.dispose(); helper = null; }
   model = gltf.scene; scene.add(model);
   model.traverse(o => { if (o.isMesh) o.frustumCulled = false; });   // r147 culls skinned meshes by their unposed bounds
   clips = gltf.animations; mixer = new THREE.AnimationMixer(model);
-  $('anim').innerHTML = clips.map((c, i) => `<option value="${i}">${c.name}</option>`).join('');
+  $('anim').innerHTML = clips.map((c, i) => `<option value="${i}">${esc(c.name)}</option>`).join('');
   $('anim').disabled = clips.length === 0;
   helper = new THREE.SkeletonHelper(model); helper.visible = $('bones').checked; scene.add(helper);
   let prims = 0, verts = 0; model.traverse(o => { if (o.isMesh) { prims++; verts += o.geometry.attributes.position.count; } });
@@ -149,7 +160,6 @@ function showModel(gltf, label) {
   $('rest').checked = false;
   if (clips.length) setAnim(0); else { times = []; setPlaying(false); updateSlider(); }
   frameCamera();
-  return { animations: clips.map(c => c.name), primitives: prims };
 }
 
 // ------------------------------------------------------------------ weapons
@@ -168,7 +178,7 @@ function setupWeapons() {
     if (!w.objects.includes(top)) w.objects.push(top);
   });
   $('weaponGroup').hidden = weapons.length === 0;
-  $('weapon').innerHTML = weapons.map((w, i) => `<option value="${i}">${i}: ${w.name}</option>`).join('') +
+  $('weapon').innerHTML = weapons.map((w, i) => `<option value="${i}">${i}: ${esc(w.name)}</option>`).join('') +
     (weapons.length > 1 ? '<option value="all">All</option>' : '') + '<option value="none">None</option>';
   if (weapons.length) showWeapon('0');
 }
@@ -179,14 +189,6 @@ function showWeapon(v) {
 }
 
 $('weapon').onchange = e => showWeapon(e.target.value);
-
-// load by URL (used when the page is served, e.g. ?file=...)
-function load(url) {
-  return new Promise((resolve, reject) => {
-    new GLTFLoader().load(url, gltf => resolve(showModel(gltf, url)),
-      undefined, err => { setInfo('Load failed: ' + err, false); reject(String(err)); });
-  });
-}
 
 // local files picked by the user: path (relative, with /) -> File
 let localFiles = new Map();
@@ -199,7 +201,7 @@ function setLocalFiles(entries) {                       // entries: [{ path, fil
   localFiles = new Map(entries.map(e => [norm(e.path), e.file]));
   const models = [...localFiles.keys()].filter(p => /\.(gltf|glb)$/i.test(p)).sort();
   $('model').innerHTML = models.length
-    ? models.map(p => `<option value="${p}">${p}</option>`).join('')
+    ? models.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('')
     : '<option>(no .gltf / .glb found)</option>';
   $('model').disabled = models.length === 0;
   if (!models.length) { setInfo('No .gltf or .glb among the selected files.'); return; }
@@ -241,7 +243,7 @@ function loadLocal(path) {
     if (missing.length) {
       needFolder();
       setInfo(`${path} needs ${missing.join(', ')} from its folder. Use Open folder… on the folder it's in.`, true);
-    } else setInfo('Load failed: ' + (err?.message || err), false);
+    } else setInfo('Load failed: ' + (err?.message || err), true);
   }));
 }
 
@@ -275,15 +277,14 @@ window.addEventListener('drop', async e => {
 
 // ------------------------------------------------------------------ animation
 function setAnim(i) {
-  if (typeof i === 'string') i = clips.findIndex(c => c.name === i);
-  if (i < 0 || !clips[i]) return false;
+  if (!clips[i]) return;
   $('anim').value = i;
   mixer.stopAllAction();
   action = mixer.clipAction(clips[i]); action.play();
   const t = new Set(); clips[i].tracks.forEach(tr => tr.times.forEach(x => t.add(+x.toFixed(5))));
   times = [...t].sort((a, b) => a - b);
   $('rest').checked = false;
-  updateSlider(); setFrame(0); return times.length;
+  updateSlider(); setFrame(0);
 }
 
 function updateSlider() {
@@ -339,14 +340,7 @@ function tick() {
   controls.update(); renderer.render(scene, camera);
 }
 
-// hooks for automated checks
-window.viewer = { load, setAnim, setFrame, frameCamera, openLocal: setLocalFiles, showWeapon, weapons: () => weapons.map(w => w.name),
-  orbit: (az, el) => { const t = controls.target, d = camera.position.distanceTo(t);
-    camera.position.set(t.x + d * Math.cos(el) * Math.sin(az), t.y + d * Math.sin(el), t.z + d * Math.cos(el) * Math.cos(az));
-    controls.update(); renderer.render(scene, camera); } };
 resize(); tick();
-const q = new URLSearchParams(location.search).get('file');
-if (q) load(q);
 </script>
 </body>
 </html>

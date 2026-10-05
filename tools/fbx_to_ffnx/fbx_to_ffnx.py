@@ -11,20 +11,22 @@ Runs inside Blender 4.5 in the background (no Blender window):
                target height (the new model is scaled to the same height), the frame count of each animation
                (compared) and, for --root-motion game, the game's root motion per frame.
   --root-motion  gltf (default): the new model's animation is kept as made, hip height and travel included.
-               The "ff7_root" node gets still keys, which tells FFNx (with its animation-independence work,
-               2026-10) to use the glTF's own root motion instead of the game's. FFNx 1.24.0 ignores root
-               motion entirely, so this is right there too.
+               The "ff7_root" node gets still keys, which tells newer FFNx builds (animation independence)
+               to use the glTF's own root motion instead of the game's. FFNx 1.24.0 ignores root motion
+               entirely, so this is right there too.
                game: for FFNx builds that apply the game's .a root motion (standing height, jumps) on top of
                the glTF joints: that root motion is taken back out of the new animation frame by frame (taken
                from the reference), so the model stands and moves where the original did.
   --anchor     original (default): each new animation starts and ends where the original does (taken from the
-               reference): its hips are lined up with the original's root at the first and the last frame, and
-               the difference is spread evenly over the frames in between (the path in between stays free).
+               reference): from the first frame to the last its hips travel and turn as far as the original's
+               root does, and a start far from standing (a jump that begins up on a train) is matched too.
+               The correction is spread evenly over the frames (the path in between stays free). Small
+               offsets that are part of the pose (weight on one leg, a loop's sway) are kept as made.
                Field walks and runs stay in place this way (the game moves the character itself; a walk that
                also travels would drift ahead and snap back every loop), and a jump like the train jump starts
                and lands where the original does. Height is matched as the change from standing height.
                none: the animation is kept exactly as made.
-  --name      glTF file name = one of the FF7 model's .p names (FFNx looks the model up by it), e.g. AAAC
+  --name       glTF file name = one of the FF7 model's .p names (FFNx looks the model up by it), e.g. AAAC
   --model      FBX with the mesh and skeleton (default: the --anim file of the reference's first animation,
                normally the idle; else the first --anim file)
   --anim       FBX=NAME: an FBX animation and the FF7 animation it replaces (4-letter name, e.g. ACFE).
@@ -127,7 +129,6 @@ ref_height = None
 ref_anims = {}
 if ref:
     nodes = ref['nodes']
-    joint_set = set(ref['skins'][0]['joints'])
     parent = {c: p for p, n in enumerate(nodes) for c in n.get('children', [])}
     root_idx = parent.get(ref['skins'][0]['joints'][0])
     if root_idx is not None:
@@ -252,7 +253,7 @@ def pick_body():
     (a skeleton's own root bone often sits on the floor and doesn't follow the body)."""
     for word in ('pelvis', 'hips', 'hip'):
         for i, n in enumerate(joints):
-            if word in n.lower().replace('thigh', ''): return i
+            if word in n.lower(): return i
     floor = max(w.translation.y for w in rest_game)          # FF7 space: Y points down
     for i, w in enumerate(rest_game):
         if floor - w.translation.y > 0.3 * src_height * scale: return i
@@ -417,7 +418,7 @@ def get_material(mat):
             m['pbrMetallicRoughness']['baseColorTexture'] = {'index': tex}
             m['pbrMetallicRoughness']['baseColorFactor'] = [1, 1, 1, 1]
     else:
-        warnings.append('Material %s has no base colour texture (FFNx 1.24.0 draws it invisible).' % key)
+        warnings.append('Material %s has no base color texture (FFNx 1.24.0 draws it invisible).' % key)
     # Transparency only where the texture really has see-through pixels: hair cards and lashes get MASK with
     # both sides drawn; a cornea is a clear shell (BLEND). Character Creator eyeballs keep other data in their
     # alpha channel, so they stay opaque.
@@ -496,6 +497,12 @@ log('Meshes: %d, %d vertices, %d triangles' % (len(meshes), total_v, total_t))
 gl['scenes'][0]['nodes'] = [root_node]
 
 # ---------------------------------------------------------------------------------------------- start and end
+# --anchor limits: distances as a share of the model's height, turns in degrees
+POSE_OFFSET, POSE_TURN = 0.15, 30.0     # a start offset or turn below these is part of the pose: kept as made
+LOOP_OFFSET, LOOP_TURN = 0.03, 5.0      # an end difference below these is a loop's sway and bob: kept as made
+WARN_OFFSET, WARN_TURN = 0.25, 30.0     # corrections above these get a warning
+KEPT_TRAVEL = 0.10                      # --anchor none: hips that travel further than this get a warning
+
 def anchor(name, worlds):
     """--anchor original: lines the new animation up with the original at its first and its last frame. The hips'
     position and heading are compared with the original's root (both relative to standing), and the correction
@@ -510,7 +517,7 @@ def anchor(name, worlds):
     travel = math.hypot(p1.x - p0.x, p1.z - p0.z)
     o0, o1 = original_root(name, 0), original_root(name, -1)
     if opt['anchor'] == 'none' or o0 is None:
-        if travel > 0.1 * src_height * scale:
+        if travel > KEPT_TRAVEL * src_height * scale:
             warnings.append('%s: kept as made; its hips travel %.1f units from the first frame to the last. If it is '
                             'a walk or run, export it in place (the game moves the character itself).' % (name, travel))
         return 'kept as made (hips travel %.1f units)' % travel if opt['anchor'] == 'none' else ''
@@ -524,18 +531,19 @@ def anchor(name, worlds):
     # Start: a small offset is the pose itself (weight on one leg, hips twisted) and stays as made; a big one
     # (the train jump starts 64 units away, turned around) is matched. End: the start correction plus whatever
     # the new animation moves or turns differently from the original, so the travel always matches.
-    big = 0.15 * src_height * scale
+    big = POSE_OFFSET * src_height * scale
     c0 = o_off[0] - n_off[0]
     if c0.length < big: c0 = Vector((0, 0, 0))
     c1 = c0 + (o_off[1] - o_off[0]) - (n_off[1] - n_off[0])
     turn0 = wrap(o_yaw[0] - h0)
-    if abs(turn0) < math.radians(30): turn0 = 0.0
+    if abs(turn0) < math.radians(POSE_TURN): turn0 = 0.0
     turn1 = turn0 + wrap((o_yaw[1] - o_yaw[0]) - (h1 - h0))
     # A loop's last frame sits one step before its first: hip sway and bob differ a little there without any real
     # travel. Differences that small are left as made.
     d = c1 - c0
-    if math.hypot(d.x, d.z) < 0.03 * src_height * scale and abs(d.y) < 0.03 * src_height * scale: c1 = c0.copy()
-    if abs(turn1 - turn0) < math.radians(5): turn1 = turn0
+    small = LOOP_OFFSET * src_height * scale
+    if math.hypot(d.x, d.z) < small and abs(d.y) < small: c1 = c0.copy()
+    if abs(turn1 - turn0) < math.radians(LOOP_TURN): turn1 = turn0
     def move_for(turn, p, c):
         q = Matrix.Rotation(turn, 4, 'Y') @ p             # the hips after the turn (about the vertical axis)
         return Vector((p.x + c.x - q.x, c.y, p.z + c.z - q.z))
@@ -548,7 +556,7 @@ def anchor(name, worlds):
     otravel = math.hypot(o1.translation.x - o0.translation.x, o1.translation.z - o0.translation.z)
     dmove = math.hypot(c1.x - c0.x, c1.z - c0.z)
     dturn = math.degrees(abs(turn1 - turn0))
-    if dmove > 0.25 * src_height * scale or dturn > 30:
+    if dmove > WARN_OFFSET * src_height * scale or dturn > WARN_TURN:
         warnings.append('%s: moves or turns differently from the original (hips travel %.1f units, the original %.1f; '
                         '%.0f degrees of turn corrected). The difference was spread over the animation: check that it '
                         'looks right, or make the animation follow the original more closely.' % (name, travel, otravel, dturn))
@@ -557,7 +565,7 @@ def anchor(name, worlds):
             % (c0.length, math.degrees(turn0), c1.length, math.degrees(turn1), travel, otravel))
 
 # ---------------------------------------------------------------------------------------------- animations
-log('Animations (one key per frame, 30 fps timestamps):')
+log('Animations (one key per frame, timestamps at each FBX file\'s frame rate):')
 for path, name in anims:
     a = import_fbx(path)
     act = a.animation_data.action if a.animation_data else None
@@ -565,6 +573,7 @@ for path, name in anims:
         warnings.append('%s has no animation; skipped.' % path); continue
     f0, f1 = int(round(act.frame_range[0])), int(round(act.frame_range[1]))
     sc = bpy.context.scene
+    fps = sc.render.fps / sc.render.fps_base              # Blender's FBX import sets the file's frame rate
     missing = [n for n in joints if n not in a.pose.bones]
     if missing: warnings.append('%s lacks bones %s; they keep their rest pose.' % (path, ', '.join(missing[:5])))
     keys_t = [[] for _ in joints]; keys_r = [[] for _ in joints]; root_t = []; root_r = []
@@ -589,7 +598,7 @@ for path, name in anims:
             keys_t[i].append(tuple(t)); keys_r[i].append(tuple(quat_xyzw(q)))
         vt, vq, _ = decompose(F4 @ groot)
         root_t.append(tuple(vt)); root_r.append(tuple(quat_xyzw(vq)))
-    times = [k / 30.0 for k in range(nframes)]
+    times = [k / fps for k in range(nframes)]
     inp = gb.floats(times, 'SCALAR', True)
     samplers, channels = [], []
     def add(node, path_, vals, typ):
@@ -611,7 +620,7 @@ for path, name in anims:
             note = '  WARNING: the game animation has %d frames' % ref_frames
             warnings.append('%s: %d frames, but the game animation has %d (FFNx plays the game\'s frame count; '
                             'extra frames are never shown, missing ones hold the last pose).' % (name, nframes, ref_frames))
-    log('  %s <- %s: %d frame(s)%s' % (name, os.path.basename(path), nframes, note))
+    log('  %s <- %s: %d frame(s) at %g fps%s' % (name, os.path.basename(path), nframes, fps, note))
     if anchor_note: log('      ' + anchor_note)
 
 # ---------------------------------------------------------------------------------------------- write

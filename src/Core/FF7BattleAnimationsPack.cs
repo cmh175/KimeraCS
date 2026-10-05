@@ -155,6 +155,11 @@ namespace KimeraCS
                         }
 
 
+                        // A model mod's skeleton can list more weapon animations than the game's pack holds
+                        // (Ninostyle SCAA: 41, SCDA: 40). Read the ones that are there.
+                        if (nsSkeletonAnims + nsWeaponsAnims > bAnimationsPack.nAnimations)
+                            nsWeaponsAnims = Math.Max(0, bAnimationsPack.nAnimations - nsSkeletonAnims);
+
                         bAnimationsPack.nbSkeletonAnims = nsSkeletonAnims;
                         bAnimationsPack.nbWeaponAnims = nsWeaponsAnims;
 

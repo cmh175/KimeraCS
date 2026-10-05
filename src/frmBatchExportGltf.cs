@@ -20,8 +20,9 @@ namespace KimeraCS
     //   battle (??AA): all animations, all weapons, limit breaks; battle scenes: static export
     //   magic / summon (.D): all animations;  .RSD / .TMD / .P: static export
     //
-    // Model-only mods have no animation files, so two folders can point at the vanilla ones: the models'
-    // own animations (.a, ??DA, summon .A00) and the magic folder (limit breaks, summon .A00).
+    // Model mods ship only the animation files they change (or none), so two folders can point at the
+    // vanilla ones: the models' own animations (.a, ??DA, summon .A00), used for those that aren't next to
+    // the model, and the magic folder (limit breaks, summon .A00).
     //
     // Output is sorted into type folders like FFNx's mesh folder: field\, world\, battle\, magic\,
     // minigame\ (each with its own textures\), reports in _reports\. FFNx reads mesh\field\ and, in
@@ -216,10 +217,10 @@ namespace KimeraCS
         }
 
         // The models' own animations: .a files (char.lgp, world_us.lgp ...), ??DA packs (battle.lgp) and summon
-        // .A00 files (magic.lgp). Empty = next to each model.
+        // .A00 files (magic.lgp). Files next to a model come first; this folder is for the ones that aren't there.
         private void BtnBrowseAnims_Click(object sender, EventArgs e)
         {
-            string f = PickFolder(txtAnims.Text, "Folder with the models' animation files (an extracted .lgp: char, world_us, battle or magic)");
+            string f = PickFolder(txtAnims.Text, "Folder with the animation files that aren't next to the models (an extracted .lgp: char, world_us, battle or magic)");
             if (f != null) txtAnims.Text = f;
         }
 
@@ -270,12 +271,12 @@ namespace KimeraCS
             {
                 case Kind.Field:
                     a.AddRange(new[] { GltfCommandLine.SWITCH, j.File, "--out", outDir, "--name", "p", "--anims", "all" });
-                    if (txtAnims.Text.Trim() != "") a.AddRange(new[] { "--anim-dir", txtAnims.Text.Trim() });
+                    if (txtAnims.Text.Trim() != "") a.AddRange(new[] { "--anim-fallback", txtAnims.Text.Trim() });
                     break;
                 case Kind.Battle:
                 case Kind.Magic:
                     a.AddRange(new[] { GltfCommandLine.SWITCH_BATTLE, j.File, "--out", outDir });
-                    if (txtAnims.Text.Trim() != "") a.AddRange(new[] { "--anim-dir", txtAnims.Text.Trim() });
+                    if (txtAnims.Text.Trim() != "") a.AddRange(new[] { "--anim-fallback", txtAnims.Text.Trim() });
                     // limit breaks for battle characters; summon animations for summon models without any
                     if (txtLimits.Text.Trim() != "") a.AddRange(new[] { "--limits-dir", txtLimits.Text.Trim() });
                     break;

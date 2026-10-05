@@ -398,7 +398,7 @@
             this.lblAnimsHint.Name = "lblAnimsHint";
             this.lblAnimsHint.Size = new System.Drawing.Size(560, 15);
             this.lblAnimsHint.TabIndex = 10;
-            this.lblAnimsHint.Text = "Own animations: .a (char, world_us), ??DA (battle), .A00 (summons). Empty: next to the models.";
+            this.lblAnimsHint.Text = "For animations that aren't next to the model: .a (char, world_us), ??DA (battle), .A00 (summons).";
             //
             // lblLimits
             //

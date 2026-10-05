@@ -49,6 +49,7 @@ namespace KimeraCS
             public RestPoseMode RestPose = RestPoseMode.CurrentFrame;
             public FieldFrame? RestFrame = null;      // pose for CurrentFrame; root placement for both
             public string AnimationFolder = "";
+            public string AnimationFallbackFolder = "";   // for animations that aren't in AnimationFolder; "" = none
             public List<string> AnimationNames = new List<string>();
             public bool To60Fps = false;              // 30 -> 60 fps conversion (see GltfRigExporter.MultiplyFrameRate)
             public GltfRigExporter.LoopMode Loops = GltfRigExporter.LoopMode.Auto;
@@ -104,27 +105,45 @@ namespace KimeraCS
             return anim;
         }
 
+        // An animation's .a file: in animFolder, or in fallbackFolder when it isn't there (model mods ship
+        // only the animations they change; the rest are the original game's). Null when it is in neither.
+        public static string FindAnimationFile(string animFolder, string fallbackFolder, string name)
+        {
+            foreach (string dir in new[] { animFolder, fallbackFolder })
+            {
+                if (string.IsNullOrEmpty(dir)) continue;
+                string p = Path.Combine(dir, name + ".A");
+                if (File.Exists(p)) return p;
+            }
+            return null;
+        }
+
         // Every compatible animation of a field model: the Ifalna database list in its own order (the
         // model's default idle comes first, e.g. ACFE for Cloud) when the model is in it; otherwise every
-        // .a file in the folder with the same bone count (world map, chocobo racing, motorbike models).
+        // .a file in the folder(s) with the same bone count (world map, chocobo racing, motorbike models).
         // Only animations whose .a file exists and fits the skeleton are returned.
-        public static List<string> CompatibleAnimations(string hrcPath, string animFolder, int nBones, out string source)
+        public static List<string> CompatibleAnimations(string hrcPath, string animFolder, int nBones, out string source,
+                                                        string fallbackFolder = null)
         {
+            int fromFallback = 0;
             bool Fits(string name)
             {
-                string p = Path.Combine(animFolder, name + ".A");
-                if (!File.Exists(p)) return false;
+                string p = FindAnimationFile(animFolder, fallbackFolder, name);
+                if (p == null) return false;
                 try
                 {
                     using (BinaryReader br = new BinaryReader(File.OpenRead(p)))
                     {
                         br.BaseStream.Position = 8;
                         int nb = br.ReadInt32();
-                        return nb == nBones || (nb == 0 && nBones == 1);
+                        if (!(nb == nBones || (nb == 0 && nBones == 1))) return false;
                     }
                 }
                 catch { return false; }
+                if (!File.Exists(Path.Combine(animFolder, name + ".A"))) fromFallback++;
+                return true;
             }
+            string Where() => animFolder + (fromFallback > 0 ? " (" + fromFallback + " of them in " + fallbackFolder + ")" : "");
 
             List<string> list = new List<string>();
             string model = Path.GetFileNameWithoutExtension(hrcPath).ToUpperInvariant();
@@ -145,17 +164,19 @@ namespace KimeraCS
 
             if (listed > 0)
             {
-                source = "Ifalna database: " + list.Count + " of " + listed + " listed animations found in " + animFolder;
+                source = "Ifalna database: " + list.Count + " of " + listed + " listed animations found in " + Where();
                 return list;
             }
 
-            if (Directory.Exists(animFolder))
-                foreach (string f in Directory.GetFiles(animFolder, "*.a").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
-                {
-                    string n = NormalizeAnimationName(Path.GetFileName(f));
-                    if (!list.Contains(n) && Fits(n)) list.Add(n);
-                }
-            source = "not in the Ifalna database: all " + list.Count + " .a files in " + animFolder + " with " + nBones + " bones";
+            foreach (string f in new[] { animFolder, fallbackFolder }
+                                 .Where(d => !string.IsNullOrEmpty(d) && Directory.Exists(d))
+                                 .SelectMany(d => Directory.GetFiles(d, "*.a")).Select(Path.GetFileName)
+                                 .OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+            {
+                string n = NormalizeAnimationName(f);
+                if (!list.Contains(n) && Fits(n)) list.Add(n);
+            }
+            source = "not in the Ifalna database: all " + list.Count + " .a files in " + Where() + " with " + nBones + " bones";
             return list;
         }
 
@@ -296,10 +317,10 @@ namespace KimeraCS
                         continue;
                     }
 
-                    string path = Path.Combine(opt.AnimationFolder, name + ".A");
-                    if (!File.Exists(path))
+                    string path = FindAnimationFile(opt.AnimationFolder, opt.AnimationFallbackFolder, name);
+                    if (path == null)
                     {
-                        res.Errors.Add("Animation " + name + ": file not found (" + path + ").");
+                        res.Errors.Add("Animation " + name + ": file not found (" + Path.Combine(opt.AnimationFolder, name + ".A") + ").");
                         continue;
                     }
 

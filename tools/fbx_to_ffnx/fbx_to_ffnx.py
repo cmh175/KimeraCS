@@ -11,9 +11,11 @@ Runs inside Blender 4.5 in the background (no Blender window):
                target height (the new model is scaled to the same height), the frame count of each animation
                (compared) and, for --root-motion game, the game's root motion per frame.
   --root-motion  gltf (default): the new model's animation is kept as made, hip height and travel included.
-               The "ff7_root" node gets still keys, which tells newer FFNx builds (animation independence)
-               to use the glTF's own root motion instead of the game's. FFNx 1.24.0 ignores root motion
-               entirely, so this is right there too.
+               The "ff7_root" node holds the game's standing placement (the reference's root, like KimeraCS
+               exports; without a reference the model's own hip height) with still keys, and the joints are
+               keyed relative to it. Newer FFNx builds (animation independence) draw that root, so the
+               animation plays exactly as made; builds that put every model on the game's root (FFNx 1.24.0)
+               and FFNx's rest-pose stand-in for an animation the glTF doesn't have stand it on the floor too.
                game: for FFNx builds that apply the game's .a root motion (standing height, jumps) on top of
                the glTF joints: that root motion is taken back out of the new animation frame by frame (taken
                from the reference), so the model stands and moves where the original did.
@@ -34,10 +36,16 @@ Runs inside Blender 4.5 in the background (no Blender window):
   --out        output folder (the .gltf, .bin and a textures folder with PNG + DDS go there)
   --height     target height in FF7 units instead of the reference's
   --max-texture  largest texture side in pixels (default 1024)
+  --morphs     used (default): shape keys (facial expressions) become glTF morph targets, keeping only the keys
+               that any exported animation moves; all: every key; none: no morph targets
+  --skip       a mesh object to leave out (repeatable, e.g. --skip hair_og)
 
 Conventions (same as KimeraCS's exporter, see GltfRigExporter.cs):
-  - joints are in FF7's own space (Y down) under a scene node "ff7_root" that holds the 180 degree turn (and,
-    for --root-motion game, the game's root motion for viewers)
+  - joints are in FF7's own space (Y down) under a scene node "ff7_root" that holds the 180 degree turn and the
+    game's standing placement (for --root-motion game, the game's root motion for viewers)
+  - the rest pose stands on the floor: an FBX whose rest pose sits elsewhere (Character Creator's Unreal export,
+    read by Blender, has it 1.2 m below its animations) is moved up; animations are taken from the posed
+    skeleton, so only the rest pose and the inverse bind matrices change
   - every joint has translation and rotation keys in every animation, one key per frame
   - each accessor in its own bufferView, JOINTS_0 unsigned byte, skin joints in depth-first order
   - image names match their file names; textures written as PNG and uncompressed DDS
@@ -54,7 +62,7 @@ from mathutils import Matrix, Quaternion, Vector
 # ---------------------------------------------------------------------------------------------- arguments
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 opt = {'anims': [], 'model': None, 'reference': None, 'name': None, 'out': None, 'height': None, 'max_texture': 1024,
-       'root_motion': 'gltf', 'anchor': 'original'}
+       'root_motion': 'gltf', 'anchor': 'original', 'morphs': 'used', 'skip': []}
 i = 0
 while i < len(argv):
     a = argv[i]
@@ -62,6 +70,10 @@ while i < len(argv):
     elif a in ('--model', '--reference', '--name', '--out'): opt[a[2:]] = argv[i + 1]; i += 2
     elif a == '--height': opt['height'] = float(argv[i + 1]); i += 2
     elif a == '--max-texture': opt['max_texture'] = int(argv[i + 1]); i += 2
+    elif a == '--morphs':
+        opt['morphs'] = argv[i + 1].lower(); i += 2
+        if opt['morphs'] not in ('used', 'all', 'none'): raise SystemExit('--morphs is used, all or none')
+    elif a == '--skip': opt['skip'].append(argv[i + 1].lower()); i += 2
     elif a == '--root-motion':
         opt['root_motion'] = argv[i + 1].lower(); i += 2
         if opt['root_motion'] not in ('gltf', 'game'): raise SystemExit('--root-motion is gltf or game')
@@ -158,9 +170,9 @@ else:
 
 def game_root(name, k):
     """The game's root placement (FF7 space) at frame k of animation `name`, from the reference. With
-    --root-motion gltf the new animation carries its own placement: none."""
+    --root-motion gltf the new animation carries its own placement below a still root at the standing height."""
     if opt['root_motion'] == 'gltf':
-        return Matrix.Identity(4)
+        return stand_root
     a = ref_anims.get(name[:4])
     if not a or not a[0] or not a[1]:
         return F4 @ ref_root_rest
@@ -240,13 +252,25 @@ elif len(joints) > 128:
     warnings.append('%d joints: FFNx 1.24.0 uses at most 128; newer builds up to 255.' % len(joints))
 
 meshes = [o for o in bpy.data.objects if o.type == 'MESH' and any(m.type == 'ARMATURE' for m in o.modifiers)]
+skipped = [o for o in meshes if o.name.lower() in opt['skip']]
+meshes = [o for o in meshes if o not in skipped]
+for o in skipped: log('Skipping mesh ' + o.name)
 zs = [(o.matrix_world @ v.co).z for o in meshes for v in o.data.vertices]
 src_height = max(zs) - min(zs)
+# The rest (bind) pose has to stand on the floor like the animations do: FFNx shows it for any animation the glTF
+# doesn't have, and --anchor measures moves from it. Some FBX files carry it elsewhere (Character Creator's Unreal
+# export, read by Blender, has it 1.2 m below its animations). Only the rest pose moves (and the inverse bind
+# matrices with it); animation keys come from the posed skeleton.
+rest_lift = -min(zs) if abs(min(zs)) > 0.01 * src_height else 0.0
+LIFT = Matrix.Translation((0.0, 0.0, rest_lift))
+if rest_lift:
+    log('Rest pose: moved %.3f %s to stand on the floor (the FBX\'s rest pose is not where its animations stand)'
+        % (abs(rest_lift), 'up' if rest_lift > 0 else 'down'))
 target_height = opt['height'] or ref_height
 scale = target_height / src_height if target_height else 1.0
 log('Size: %.3f in the FBX -> %.2f FF7 units (x%.3f)' % (src_height, src_height * scale, scale))
 
-rest_game = [to_game(arm.matrix_world @ arm.data.bones[n].matrix_local, scale) for n in joints]
+rest_game = [to_game(LIFT @ arm.matrix_world @ arm.data.bones[n].matrix_local, scale) for n in joints]
 
 def pick_body():
     """The hips joint: the topmost joint named pelvis / hips / hip, else the topmost joint well above the floor
@@ -260,7 +284,12 @@ def pick_body():
     return 0
 body = pick_body()
 log('Hips joint: ' + joints[body])
-root_rest = F4 @ ref_root_rest if opt['root_motion'] == 'game' else Matrix.Identity(4)
+# The standing placement under the ff7_root node: the reference's root (KimeraCS exports hold the game's standing
+# hip height there), else the model's own hip height. FFNx draws the rest pose on the game's root, and builds
+# without glTF root motion draw every animation there, so the joints are relative to it in both modes.
+stand_root = F4 @ ref_root_rest if ref else Matrix.Translation((0.0, rest_game[body].translation.y, 0.0))
+root_rest = stand_root
+log('Standing root: %.2f units above the floor%s' % (-stand_root.translation.y, ' (the reference\'s)' if ref else ' (the hips\' rest height)'))
 log('Root motion: ' + ('from the game (taken back out of the new animation)' if opt['root_motion'] == 'game'
                        else 'the new animation\'s own (glTF root motion)'))
 log('Start and end: ' + ('matched to the original (--anchor original)' if opt['anchor'] == 'original' and ref
@@ -369,6 +398,15 @@ class Builder:
         self.accessors.append({'bufferView': self.view(struct.pack('<%dB' % len(flat), *flat), 34962),
                                'componentType': 5121, 'count': len(vals), 'type': 'VEC4'})
         return len(self.accessors) - 1
+    def sparse_vec3(self, count, entries):
+        """A VEC3 accessor of `count` zeros except `entries` [(index, (x, y, z)), ...] (a morph target's deltas)."""
+        acc = {'componentType': 5126, 'count': count, 'type': 'VEC3'}
+        if entries:
+            entries = sorted(entries)
+            iv = self.view(struct.pack('<%dI' % len(entries), *[e[0] for e in entries]))
+            vv = self.view(struct.pack('<%df' % (3 * len(entries)), *[c for e in entries for c in e[1]]))
+            acc['sparse'] = {'count': len(entries), 'indices': {'bufferView': iv, 'componentType': 5125}, 'values': {'bufferView': vv}}
+        self.accessors.append(acc); return len(self.accessors) - 1
     def indices(self, idx, nverts):
         if nverts < 65536: data, ct = struct.pack('<%dH' % len(idx), *idx), 5123
         else: data, ct = struct.pack('<%dI' % len(idx), *idx), 5125
@@ -436,6 +474,11 @@ def get_material(mat):
 
 total_v = total_t = 0
 unweighted = 0
+morph_data = {}     # mesh name -> keys, deltas per primitive
+mesh_index = {}     # mesh name -> glTF mesh
+mesh_node = {}      # mesh name -> glTF node
+morph_tracks = {}   # animation name -> mesh name -> [[value per key] per frame]
+anim_inputs = {}    # animation name -> (glTF animation index, time accessor)
 for obj in meshes:
     me = obj.data
     me.calc_loop_triangles()
@@ -467,7 +510,7 @@ for obj in meshes:
             if idx is None:
                 idx = len(p['pos'])
                 p['map'][key] = idx
-                g = RG @ (mw @ me.vertices[vi].co) * scale            # FF7 space
+                g = RG @ (LIFT @ (mw @ me.vertices[vi].co)) * scale   # FF7 space
                 p['pos'].append((-g.x, -g.y, g.z))                     # viewer space (F4)
                 n = RG @ (nm @ Vector(nrm)); n = Vector((-n.x, -n.y, n.z)).normalized()
                 p['nrm'].append(tuple(n))
@@ -477,6 +520,26 @@ for obj in meshes:
             corner.append(idx)
         # Blender and glTF both use counter-clockwise front faces; the mirror in F4 x RG is a rotation, so no flip
         p['idx'] += corner
+    # Shape keys: each key's deltas per primitive (in the same space as the positions), for morph targets
+    sk = me.shape_keys if opt['morphs'] != 'none' else None
+    if sk and len(sk.key_blocks) > 1:
+        rot = RG @ mw.to_3x3()
+        basis = sk.key_blocks[0].data
+        prim_vmap = {mi: {} for mi in prims}
+        for mi, p in prims.items():
+            for key, idx in p['map'].items(): prim_vmap[mi].setdefault(key[0], []).append(idx)
+        keys = [kb.name for kb in sk.key_blocks[1:]]
+        deltas = {mi: {k: [] for k in keys} for mi in prims}
+        for kb in sk.key_blocks[1:]:
+            kd = kb.data
+            for vi in range(len(me.vertices)):
+                d = kd[vi].co - basis[vi].co
+                if d.length_squared < 1e-8: continue          # under 0.1 mm in the FBX: noise
+                g = (rot @ d) * scale
+                dv = (-g.x, -g.y, g.z)
+                for mi, vmap in prim_vmap.items():
+                    for idx in vmap.get(vi, ()): deltas[mi][kb.name].append((idx, dv))
+        morph_data[obj.name] = {'keys': keys, 'deltas': deltas, 'prim_order': sorted(prims)}
     out_prims = []
     for mi, p in sorted(prims.items()):
         mat = obj.material_slots[mi].material if mi < len(obj.material_slots) else None
@@ -490,9 +553,13 @@ for obj in meshes:
     gl['meshes'].append({'name': obj.name, 'primitives': out_prims})
     gl['nodes'].append({'name': obj.name, 'mesh': len(gl['meshes']) - 1, 'skin': 0})
     gl['nodes'][root_node]['children'].append(len(gl['nodes']) - 1)
-    log('  mesh %s: %d primitive(s), %d vertices' % (obj.name, len(out_prims), sum(len(p['pos']) for p in prims.values())))
+    mesh_index[obj.name] = len(gl['meshes']) - 1
+    mesh_node[obj.name] = len(gl['nodes']) - 1
+    hidden = ' (hidden in the FBX)' if obj.hide_render or obj.hide_viewport else ''
+    log('  mesh %s: %d primitive(s), %d vertices%s%s' % (obj.name, len(out_prims), sum(len(p['pos']) for p in prims.values()),
+        ', %d shape keys' % len(morph_data[obj.name]['keys']) if obj.name in morph_data else '', hidden))
 if unweighted: warnings.append('%d vertices had no bone weights; bound to %s.' % (unweighted, joints[0]))
-if any(o.data.shape_keys for o in meshes): log('  shape keys (facial expressions) dropped: FFNx has no morph support')
+if opt['morphs'] == 'none' and any(o.data.shape_keys for o in meshes): log('  shape keys dropped (--morphs none)')
 log('Meshes: %d, %d vertices, %d triangles' % (len(meshes), total_v, total_t))
 gl['scenes'][0]['nodes'] = [root_node]
 
@@ -579,8 +646,17 @@ for path, name in anims:
     keys_t = [[] for _ in joints]; keys_r = [[] for _ in joints]; root_t = []; root_r = []
     nframes = f1 - f0 + 1
     worlds = []
+    # The shape keys this file animates, matched to the model's meshes by mesh name and key name
+    key_sources = {}
+    for o in bpy.data.objects:
+        if o.type == 'MESH' and o.data.shape_keys and o.name in morph_data:
+            blocks = {kb.name: kb for kb in o.data.shape_keys.key_blocks[1:]}
+            key_sources[o.name] = [blocks.get(k) for k in morph_data[o.name]['keys']]
+    tracks = {name_: [] for name_ in key_sources}
     for k in range(nframes):
         sc.frame_set(f0 + k)
+        for name_, blocks in key_sources.items():
+            tracks[name_].append([kb.value if kb else 0.0 for kb in blocks])
         world = []
         for i, n in enumerate(joints):
             pb = a.pose.bones.get(n)
@@ -607,7 +683,15 @@ for path, name in anims:
     add(root_node, 'translation', root_t, 'VEC3'); add(root_node, 'rotation', root_r, 'VEC4')
     for i in range(len(joints)):
         add(joint_node[i], 'translation', keys_t[i], 'VEC3'); add(joint_node[i], 'rotation', keys_r[i], 'VEC4')
-    gl['animations'].append({'name': name, 'channels': channels, 'samplers': samplers})
+    anim_entry = {'name': name, 'channels': channels, 'samplers': samplers}
+    # A clip on a held game pose (a 1-frame idle in the reference) plays on its own clock in FFNx, whatever frame
+    # count the game's copy of that animation has (60 fps mods replace 1-frame idles with breathing loops)
+    ref_frames_here = ref_anims.get(name[:4], (None, None, 0))[2] if ref else 0
+    if ref and ref_frames_here == 1 and nframes > 1:
+        anim_entry['extras'] = {'ffnx_timing': 'own'}
+    gl['animations'].append(anim_entry)
+    morph_tracks[name] = tracks
+    anim_inputs[name] = (len(gl['animations']) - 1, inp)
     ref_frames = ref_anims.get(name[:4], (None, None, 0))[2] if ref else 0
     note = ''
     if ref and name[:4] not in ref_anims:
@@ -620,8 +704,51 @@ for path, name in anims:
             note = '  WARNING: the game animation has %d frames' % ref_frames
             warnings.append('%s: %d frames, but the game animation has %d (FFNx plays the game\'s frame count; '
                             'extra frames are never shown, missing ones hold the last pose).' % (name, nframes, ref_frames))
+    if anim_entry.get('extras', {}).get('ffnx_timing') == 'own': note += '  (held pose in the game: plays on its own clock)'
     log('  %s <- %s: %d frame(s) at %g fps%s' % (name, os.path.basename(path), nframes, fps, note))
     if anchor_note: log('      ' + anchor_note)
+
+# ---------------------------------------------------------------------------------------------- morph targets
+# Each mesh's shape keys become morph targets of its primitives (POSITION deltas, stored sparse), and every animation
+# gets a "weights" channel per mesh with the key values per frame. With --morphs used, keys no animation moves are
+# left out.
+if morph_data:
+    log('Morph targets:')
+for mesh_name, md in morph_data.items():
+    keys = md['keys']
+    if opt['morphs'] == 'used':
+        moved = set()
+        for name, tracks in morph_tracks.items():
+            for frame in tracks.get(mesh_name, []):
+                for ki, v in enumerate(frame):
+                    if abs(v) > 1e-4: moved.add(ki)
+        used = [ki for ki in range(len(keys)) if ki in moved]
+    else:
+        used = list(range(len(keys)))
+    if not used:
+        log('  %s: none of its %d shape keys is used by the animations' % (mesh_name, len(keys)))
+        continue
+    mesh = gl['meshes'][mesh_index[mesh_name]]
+    nonzero = 0
+    for prim, mi in zip(mesh['primitives'], md['prim_order']):
+        count = gb.accessors[prim['attributes']['POSITION']]['count']
+        prim['targets'] = []
+        for ki in used:
+            entries = md['deltas'][mi][keys[ki]]
+            nonzero += len(entries)
+            prim['targets'].append({'POSITION': gb.sparse_vec3(count, entries)})
+    mesh['weights'] = [0.0] * len(used)
+    mesh['extras'] = {'targetNames': [keys[ki] for ki in used]}
+    for name, tracks in morph_tracks.items():
+        frames = tracks.get(mesh_name)
+        if not frames: continue
+        ai, inp = anim_inputs[name]
+        flat = [frame[ki] for frame in frames for ki in used]
+        anim = gl['animations'][ai]
+        anim['samplers'].append({'input': inp, 'interpolation': 'LINEAR', 'output': gb.floats(flat, 'SCALAR')})
+        anim['channels'].append({'sampler': len(anim['samplers']) - 1, 'target': {'node': mesh_node[mesh_name], 'path': 'weights'}})
+    log('  %s: %d of %d shape keys exported (%d moved vertices in all), weights in %s' % (mesh_name, len(used), len(keys), nonzero,
+        ', '.join(n for n, t in morph_tracks.items() if t.get(mesh_name)) or 'no animation'))
 
 # ---------------------------------------------------------------------------------------------- write
 gl['buffers'] = [{'byteLength': len(gb.bin), 'uri': opt['name'] + '.bin'}]

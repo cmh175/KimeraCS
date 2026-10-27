@@ -21,7 +21,8 @@ namespace KimeraCS
     // -> glTF for FFNx.
     //
     // Conventions (the ones FFNx reads battle models by; battle files go in mesh\battle):
-    //   - joints "bone_00".."bone_NN" (battle bones have no names), parents like Kimera's drawing code
+    //   - joints "bone_00".."bone_NN" (battle bones have no names); party models add a readable name after
+    //     the number ("bone_05_l_uparm", BattleBoneNames); parents like Kimera's drawing code
     //   - joint rest translation = (0, 0, +length of parent bone); rotations use Kimera's quaternion math
     //   - root node = Kimera's root placement turned 180 degrees about Z like the rest of the model:
     //     translation (-startX, -startY, startZ), rotation flipZ * q(root). Battle frames are Y-down (e.g.
@@ -213,25 +214,36 @@ namespace KimeraCS
 
                 // ---------------------------------------------------------------- joints
                 // parent lookup exactly like ModelDrawing.DrawBattleSkeleton (index stack walk)
+                int[] parents = new int[nb];
                 int[] stack = new int[nb + 1];
                 int jsp = 0;
                 stack[0] = -1;
                 for (int bi = 0; bi < nb; bi++)
                 {
                     while (skel.bones[bi].parentBone != stack[jsp] && jsp > 0) jsp--;
-                    int parent = stack[jsp];
+                    parents[bi] = stack[jsp];
+                    jsp++;
+                    stack[jsp] = bi;
+                }
 
+                // magic/summon models keep plain numbers (their .D file names aren't in the table)
+                string[] jointNames = BattleBoneNames.JointNames(isMagic ? "" : skel.fileName, parents, out string layout);
+                if (!isMagic)
+                    res.Report.Add("Bone names: " + (layout != null ? layout + " (bone_NN_<name>)"
+                                                    : BattleBoneNames.IsListed(skel.fileName) ? "numbers only (the skeleton differs from the original's)"
+                                                    : "numbers only"));
+
+                for (int bi = 0; bi < nb; bi++)
+                {
+                    int parent = parents[bi];
                     BattleFrameBone rb = restFromFrame ? restFrame.bones[bi + boneOffset] : default;
                     rig.Joints.Add(new GltfRigExporter.Joint
                     {
-                        Name = "bone_" + bi.ToString("00", CultureInfo.InvariantCulture),
+                        Name = jointNames[bi],
                         Parent = parent,
                         RestT = new double[] { 0, 0, parent >= 0 ? skel.bones[parent].len : 0 },
                         RestR = restFromFrame ? GltfMath.KimeraQuat(rb.alpha, rb.beta, rb.gamma) : new Quaternion { w = 1 },
                     });
-
-                    jsp++;
-                    stack[jsp] = bi;
                 }
 
                 rig.RootRestR = restFromFrame

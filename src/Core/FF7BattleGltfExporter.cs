@@ -21,8 +21,8 @@ namespace KimeraCS
     // -> glTF for FFNx.
     //
     // Conventions (the ones FFNx reads battle models by; battle files go in mesh\battle):
-    //   - joints "bone_00".."bone_NN" (battle bones have no names); party models add a readable name after
-    //     the number ("bone_05_l_uparm", BattleBoneNames); parents like Kimera's drawing code
+    //   - joints "bone_00".."bone_NN" (battle bones have no names); party models and summons add a readable
+    //     name after the number ("bone_05_l_uparm", BattleBoneNames); parents like Kimera's drawing code
     //   - joint rest translation = (0, 0, +length of parent bone); rotations use Kimera's quaternion math
     //   - root node = Kimera's root placement turned 180 degrees about Z like the rest of the model:
     //     translation (-startX, -startY, startZ), rotation flipZ * q(root). Battle frames are Y-down (e.g.
@@ -226,12 +226,10 @@ namespace KimeraCS
                     stack[jsp] = bi;
                 }
 
-                // magic/summon models keep plain numbers (their .D file names aren't in the table)
-                string[] jointNames = BattleBoneNames.JointNames(isMagic ? "" : skel.fileName, parents, out string layout);
-                if (!isMagic)
-                    res.Report.Add("Bone names: " + (layout != null ? layout + " (bone_NN_<name>)"
-                                                    : BattleBoneNames.IsListed(skel.fileName) ? "numbers only (the skeleton differs from the original's)"
-                                                    : "numbers only"));
+                string[] jointNames = BattleBoneNames.JointNames(skel.fileName, parents, out string layout);
+                res.Report.Add("Bone names: " + (layout != null ? layout + " (bone_NN_<name>)"
+                                                : BattleBoneNames.IsListed(skel.fileName) ? "numbers only (the skeleton differs from the original's)"
+                                                : "numbers only"));
 
                 for (int bi = 0; bi < nb; bi++)
                 {
